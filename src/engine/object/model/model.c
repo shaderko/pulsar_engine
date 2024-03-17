@@ -56,6 +56,9 @@ static Model *InitBox()
         ERROR_EXIT("Couldn't allocate memory for indicies!\n");
     }
 
+    model->uv_count = 0;
+    model->uvs = NULL;
+
     unsigned int indicesArray[] = {0, 1, 2, 0, 2, 3, 1, 5, 6, 1, 6, 2, 5, 4, 7, 5, 7, 6, 4, 0, 3, 4, 3, 7};
     memcpy(model->indicies, indicesArray, sizeof(unsigned int) * model->indicies_count);
 
@@ -188,6 +191,9 @@ static SerializedDerived Serialize(Model *model)
 {
     SerializedDerived serialized = {0};
     serialized.len = sizeof(Model) + (sizeof(vec3) * model->verticies_count) + (sizeof(unsigned int) * model->indicies_count) + (sizeof(vec3) * model->uv_count);
+
+    printf("Serialized model size: %i bytes\n", serialized.len);
+
     serialized.data = malloc(serialized.len);
     if (!serialized.data)
     {
@@ -210,7 +216,8 @@ static SerializedDerived Serialize(Model *model)
 
 static Model *Deserialize(SerializedDerived serialized)
 {
-    // puts("Deserializing model");
+    puts("Deserializing model");
+
     Model *model = malloc(sizeof(Model));
     if (!model)
     {

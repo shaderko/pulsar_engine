@@ -19,6 +19,7 @@
 #include "cimgui.h"
 #include "cimgui_impl.h"
 #include "../engine/window/window.h"
+#include "../engine/object/map/scene.h"
 
 typedef struct Editor Editor;
 struct Editor
@@ -26,6 +27,8 @@ struct Editor
     Window *window;
 
     ImGuiContext *imgui_context;
+
+    Scene *scene;
 };
 
 struct AEditor

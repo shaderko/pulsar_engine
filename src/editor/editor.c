@@ -20,6 +20,7 @@ static Editor *Init()
         ERROR_EXIT("Failed to allocate editor struct\n");
 
     editor->window = AWindow->Init(1280, 720, "Pulsar Engine Editor");
+    editor->scene = NULL;
 
     SDL_GL_SetSwapInterval(1); // enable vsync
 
@@ -65,9 +66,18 @@ static void Render(Editor *editor, SDL_Event *event)
     {
         if (igBeginMenu("Create", true))
         {
-            if (igMenuItem_Bool("Cube", NULL, false, true))
+            if (igMenuItem_Bool("Box", NULL, false, true))
             {
-                // Code to create a cube...
+                puts("Creating Box...");
+
+                if (!editor->scene)
+                {
+                    puts("Creating new scene...");
+                    editor->scene = AScene->Init((vec3){1, 1, 1});
+                }
+
+                Object *box = AObject.InitBox(false, true, 1, (vec3){0, 0, 0}, (vec3){100, 100, 100});
+                AScene->Add(editor->scene, box);
             }
             if (igMenuItem_Bool("Sphere", NULL, false, true))
             {
@@ -76,6 +86,31 @@ static void Render(Editor *editor, SDL_Event *event)
             if (igMenuItem_Bool("Light", NULL, false, true))
             {
                 // Code to create a light...
+            }
+            igEndMenu();
+        }
+        if (igBeginMenu("Scene", true))
+        {
+            if (igMenuItem_Bool("Load", NULL, false, true))
+            {
+                puts("Loading scene...");
+
+                if (!editor->scene)
+                {
+                    puts("Creating new scene...");
+                    editor->scene = AScene->Init((vec3){1, 1, 1});
+                }
+
+                AScene->ReadFile(editor->scene, "scene.bin");
+            }
+            if (igMenuItem_Bool("Save", NULL, false, true))
+            {
+                if (!editor->scene)
+                {
+                    printf("No scene to save!\n");
+                    return;
+                }
+                AScene->WriteToFile(editor->scene, "scene.bin");
             }
             igEndMenu();
         }
