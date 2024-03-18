@@ -18,11 +18,10 @@
 
 #include "../../util/util.h"
 
+MAX_CHUNK_SIZE = (1024 * 1024);
 MAX_BUFFER_SIZE = 65536;
 
-// Init function should be called to load from cache
-static Model *
-Init()
+static Model *Init()
 {
     Model *model = malloc(sizeof(Model));
 
@@ -95,9 +94,120 @@ static Model *InitMesh(int verticies_count, vec3 *verticies, int indicies_count,
     return model;
 }
 
+typedef struct model_load_helper_args
+{
+    char *chunk;
+    size_t chunk_size;
+
+    unsigned int current_verticies_size;
+    unsigned int current_indicies_size;
+
+    unsigned int verticies_count;
+    unsigned int indicies_count;
+
+    float *verticies;
+    unsigned int *indicies;
+} model_load_helper_args;
+
+static void process_line(char *line, model_load_helper_args *args)
+{
+    if (line[0] == 'v' && line[1] == ' ')
+    {
+        // Vertices
+        if (args->current_verticies_size <= args->verticies_count + 3)
+        {
+            // Allocate more space for verticies
+            args->current_verticies_size += MAX_BUFFER_SIZE;
+            args->verticies = realloc(args->verticies, sizeof(float) * args->current_verticies_size);
+            if (!args->verticies)
+                ERROR_EXIT("Failed to allocate memory for vertices\n");
+        }
+
+        // Read vertex coordinates directly into allocated space
+        char *ptr = &line[2]; // Start parsing after "v "
+        for (int i = 0; i < 3; i++)
+        {
+            args->verticies[args->verticies_count++] = strtof(ptr, &ptr);
+        }
+    }
+    else if (line[0] == 'f' && line[1] == ' ')
+    {
+        if (args->current_indicies_size <= args->indicies_count + 3)
+        {
+            // Allocate more space for verticies
+            args->current_indicies_size += MAX_BUFFER_SIZE;
+            args->indicies = realloc(args->indicies, sizeof(unsigned int) * args->current_indicies_size);
+            if (!args->indicies)
+                ERROR_EXIT("Failed to allocate memory for indicies\n");
+        }
+
+        char *ptr = &line[2]; // Start parsing after "f "
+        long val;
+        for (int i = 0; i < 3; i++)
+        {
+            errno = 0;
+            val = strtol(ptr, &ptr, 10); // Parse integer
+            if (errno != 0)
+            {
+                // Handle potential error
+                break;
+            }
+            args->indicies[args->indicies_count++] = (unsigned int)val - 1; // Adjust indices to be 0-based
+            while (*ptr && *ptr != ' ' && *ptr != '\n')
+                ++ptr;
+        }
+    }
+}
+
+static void model_load_helper(void *args)
+{
+    model_load_helper_args *helper_args = (model_load_helper_args *)args;
+
+    // Allocate space for verticies and indicies
+    helper_args->verticies = malloc(sizeof(float) * MAX_BUFFER_SIZE);
+    if (!helper_args->verticies)
+        ERROR_EXIT("Failed to allocate memory for vertices\n");
+    helper_args->current_verticies_size = MAX_BUFFER_SIZE;
+    helper_args->verticies_count = 0;
+
+    helper_args->indicies = malloc(sizeof(unsigned int) * MAX_BUFFER_SIZE);
+    if (!helper_args->indicies)
+        ERROR_EXIT("Failed to allocate memory for indicies\n");
+    helper_args->current_indicies_size = MAX_BUFFER_SIZE;
+    helper_args->indicies_count = 0;
+
+    char *ptr = helper_args->chunk;
+    char *line_start = ptr; // Pointer to the start of the current line
+    while (*ptr != '\0')
+    { // Iterate until the end of the chunk
+        if (*ptr == '\n' || *ptr == '\r')
+        {
+            *ptr = '\0'; // Null-terminate the current line for processing
+            process_line(line_start, helper_args);
+
+            ptr++; // Move past the newline character
+            // Handle \r\n (Windows) newline sequences
+            if (*ptr == '\n')
+            {
+                ptr++;
+            }
+            line_start = ptr; // Set the start of the next line
+        }
+        else
+        {
+            ptr++; // Move to the next character
+        }
+    }
+
+    // Process any remaining line if the file doesn't end with a newline
+    if (ptr != line_start)
+    {
+        process_line(line_start, helper_args);
+    }
+}
+
 static Model *Load(const char *path)
 {
-
     FILE *file = fopen(path, "r");
     if (!file)
         ERROR_RETURN(NULL, "Failed to open file: %s\n", path);
@@ -107,75 +217,81 @@ static Model *Load(const char *path)
     clock_t start, end;
     start = clock();
 
-    // Allocate space for verticies ahead of time
-    unsigned int current_verticies_size = MAX_BUFFER_SIZE;
-    model->verticies = malloc(sizeof(float) * current_verticies_size);
-    if (!model->verticies)
-        ERROR_EXIT("Failed to allocate memory for vertices\n");
-
-    // Allocate space for indicies ahead of time
-    unsigned int current_indicies_size = MAX_BUFFER_SIZE;
-    model->indicies = malloc(sizeof(unsigned int) * current_indicies_size);
-    if (!model->indicies)
-        ERROR_EXIT("Failed to allocate memory for indicies\n");
-
-    char line[128];
-    while (fgets(line, sizeof(line), file) != NULL)
+    char *chunk = calloc(1, MAX_CHUNK_SIZE);
+    if (!chunk)
     {
-        if (line[0] == 'v' && line[1] == ' ')
-        {
-            // Vertices
-            if (current_verticies_size <= model->verticies_count + 3)
-            {
-                // Allocate more space for verticies
-                current_verticies_size += MAX_BUFFER_SIZE;
-                model->verticies = realloc(model->verticies, sizeof(float) * current_verticies_size);
-                if (!model->verticies)
-                    ERROR_EXIT("Failed to allocate memory for vertices\n");
-            }
-
-            // Read vertex coordinates directly into allocated space
-            char *ptr = &line[2]; // Start parsing after "v "
-            for (int i = 0; i < 3; i++)
-            {
-                model->verticies[model->verticies_count++] = strtof(ptr, &ptr);
-            }
-        }
-        else if (line[0] == 'f' && line[1] == ' ')
-        {
-            if (current_indicies_size <= model->indicies_count + 3)
-            {
-                // Allocate more space for verticies
-                current_indicies_size += MAX_BUFFER_SIZE;
-                model->indicies = realloc(model->indicies, sizeof(unsigned int) * current_indicies_size);
-                if (!model->indicies)
-                    ERROR_EXIT("Failed to allocate memory for indicies\n");
-            }
-
-            char *ptr = &line[2]; // Start parsing after "f "
-            long val;
-            for (int i = 0; i < 3; i++)
-            {
-                errno = 0;
-                val = strtol(ptr, &ptr, 10); // Parse integer
-                if (errno != 0)
-                {
-                    // Handle potential error
-                    break;
-                }
-                model->indicies[model->indicies_count++] = (unsigned int)val - 1; // Adjust indices to be 0-based
-                while (*ptr && *ptr != ' ' && *ptr != '\n')
-                    ++ptr;
-            }
-        }
+        ERROR_EXIT("Failed to allocate memory for file chunk\n");
     }
 
-    realloc(model->verticies, sizeof(float) * model->verticies_count);
+    size_t num_of_threads = 0;
+    SDL_Thread **threadIds = NULL;
+    model_load_helper_args **args_list = NULL;
+
+    size_t bytes_read;
+    while ((bytes_read = fread(chunk, sizeof(char), MAX_CHUNK_SIZE, file)) > 0)
+    {
+        model_load_helper_args *args = malloc(sizeof(model_load_helper_args));
+
+        args->chunk = malloc(bytes_read);
+        memcpy(args->chunk, chunk, bytes_read);
+        args->chunk_size = bytes_read;
+
+        SDL_Thread *threadId = SDL_CreateThread(model_load_helper, "model_load_helper", (void *)args);
+
+        threadIds = realloc(threadIds, sizeof(SDL_Thread *) * (num_of_threads + 1));
+        args_list = realloc(args_list, sizeof(model_load_helper_args *) * (num_of_threads + 1));
+        args_list[num_of_threads] = args;
+        threadIds[num_of_threads] = threadId;
+        num_of_threads++;
+    }
+
+    for (size_t i = 0; i < num_of_threads; i++)
+    {
+        SDL_WaitThread(threadIds[i], NULL);
+    }
+
+    unsigned int total_verticies = 0;
+    unsigned int total_indicies = 0;
+
+    for (size_t i = 0; i < num_of_threads; i++)
+    {
+        // counting verticies and indicies
+        total_verticies += args_list[i]->verticies_count;
+        total_indicies += args_list[i]->indicies_count;
+    }
+
+    model->verticies = malloc(sizeof(float) * total_verticies);
     if (!model->verticies)
-        ERROR_EXIT("Failed to allocate memory for vertices\n");
-    realloc(model->indicies, sizeof(unsigned int) * model->indicies_count);
+        ERROR_EXIT("Failed to allocate memory for model verticies\n");
+    model->verticies_count = total_verticies;
+
+    model->indicies = malloc(sizeof(unsigned int) * total_indicies);
     if (!model->indicies)
-        ERROR_EXIT("Failed to allocate memory for indicies\n");
+        ERROR_EXIT("Failed to allocate memory for model indicies\n");
+    model->indicies_count = total_indicies;
+
+    unsigned int current_verticies_count = 0;
+    unsigned int current_indicies_count = 0;
+
+    for (size_t i = 0; i < num_of_threads; i++)
+    {
+        model_load_helper_args *arg = args_list[i];
+
+        memcpy(&model->verticies[current_verticies_count], arg->verticies, sizeof(float) * arg->verticies_count);
+        memcpy(&model->indicies[current_indicies_count], arg->indicies, sizeof(unsigned int) * arg->indicies_count);
+
+        current_verticies_count += arg->verticies_count;
+        current_indicies_count += arg->indicies_count;
+
+        free(arg->verticies);
+        free(arg->indicies);
+        free(arg->chunk);
+        free(arg);
+    }
+
+    free(chunk);
+    free(threadIds);
+    free(args_list);
 
     fclose(file);
     model->is_valid = true;

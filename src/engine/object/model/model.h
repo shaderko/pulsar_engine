@@ -24,10 +24,14 @@ struct Model
 
     unsigned int verticies_count;
     float *verticies;
+
     unsigned int indicies_count;
     unsigned int *indicies;
+
     int uv_count;
     vec3 *uvs;
+
+    mat4x4 transform;
 
     vec4 color;
 };
