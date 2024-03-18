@@ -12,77 +12,130 @@
 #include "camera.h"
 #include "../common/global/global.h"
 #include "../util/util.h"
+#include "../object/object.h"
 
-static Camera *camera = NULL;
-
-static Camera *Init(float distance, float smoothing, vec3 position, Object *target)
+static Camera *Init()
 {
-    camera = malloc(sizeof(Camera));
+    Camera *camera = malloc(sizeof(Camera));
     if (!camera)
-    {
         ERROR_EXIT("error allocating memory for camera.\n");
+
+    memcpy(camera->position, (vec3){0, 0, 0}, sizeof(vec3));
+
+    mat4x4_identity(camera->view);
+    mat4x4_identity(camera->projection);
+
+    memcpy(camera->center, (vec3){0.0f, 0.0f, 0}, sizeof(vec3));
+    memcpy(camera->eye, (vec3){0.0f, 0.0f, 0}, sizeof(vec3));
+    memcpy(camera->up, (vec3){0.0f, 1.0f, 0}, sizeof(vec3));
+
+    // Initialize rendering to texture
+    glGenTextures(1, &camera->color);
+    glBindTexture(GL_TEXTURE_2D, camera->color);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1920, 1080, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glGenRenderbuffers(1, &camera->depth);
+    glBindRenderbuffer(GL_RENDERBUFFER, camera->depth);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32, 1920, 1080);
+
+    // Create low-resolution FBO and attach color texture and depth renderbuffer
+    glGenFramebuffers(1, &camera->fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, camera->fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, camera->color, 0);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, camera->depth);
+
+    // Check if FBO creation was successful
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    {
+        printf("Error: Framebuffer is not complete!\n");
+        // TODO:
     }
 
-    camera->target = target;
-    camera->distance = distance;
-    camera->smoothing = smoothing;
-    memcpy(camera->position, position, sizeof(vec3));
-    mat4x4_identity(camera->view);
-    ACamera->UpdateView();
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     return camera;
 }
 
-static void UpdateView()
+static Camera *InitOrtho(float left, float right, float bottom, float top, float near, float far)
 {
-    int z_distance = 10000; // TODO:
-    vec3 eye = {camera->position[0], z_distance + camera->position[1], z_distance * 2};
-    vec3 center = {camera->position[0], camera->position[1], 0};
-    vec3 up = {0.0f, 1.0f, 0};
-    mat4x4_look_at(camera->view, eye, center, up);
+    Camera *camera = Init();
+
+    mat4x4_ortho(camera->projection, left, right, bottom, top, near, far);
+
+    return camera;
 }
 
-/**
- * @brief Follow the target
- *
- * @param mousePos - (Optional) mouse position (vec2)
- */
-static void FollowTarget(vec2 *mousePos)
+static Camera *InitPerspective(float fov, float aspect, float near, float far)
 {
-    if (!camera->target)
-    {
+    Camera *camera = Init();
+
+    mat4x4_perspective(camera->projection, fov, aspect, near, far);
+
+    return camera;
+}
+
+static Camera *UpdateView(Camera *camera)
+{
+    if (!camera)
         return;
-    }
-    vec3 targetPos;
-    vec3 playerPos = {camera->target->position[0], camera->target->position[1], 0};
 
-    if (mousePos)
-    {
-        // vec3 targetMousePos = {((*mousePos)[0] - global.render.width / 2) / (global.render.width / 2), ((*mousePos)[1] - global.render.height / 2) / (global.render.height / 2), 0};
-        // memcpy(targetPos, &(vec3){playerPos[0] + targetMousePos[0] * camera->distance, playerPos[1] + targetMousePos[1] * camera->distance, 0}, sizeof(vec3));
-    }
-    else
-    {
-        memcpy(targetPos, &(vec3){playerPos[0], playerPos[1], 0}, sizeof(vec3));
-    }
+    memcpy(camera->eye, camera->position, sizeof(vec3));
 
-    ACamera->UpdatePosition(targetPos);
+    mat4x4_look_at(camera->view, camera->eye, camera->center, camera->up);
 }
 
-static void UpdatePosition(vec3 position)
+static void Render(Camera *camera, Window *window, float width, float height)
 {
-    camera->velocity[0] = (position[0] - camera->position[0]) / camera->smoothing;
-    camera->velocity[1] = (position[1] - camera->position[1]) / camera->smoothing;
+    if (!camera)
+        return;
 
-    camera->position[0] += camera->velocity[0];
-    camera->position[1] += camera->velocity[1];
+    static float lastRenderedWidth;
+    static float lastRenderedHeight;
 
-    ACamera->UpdateView();
+    if (lastRenderedWidth != width || lastRenderedHeight != height)
+    {
+        // Update texture size
+        glBindTexture(GL_TEXTURE_2D, camera->color);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+        // Update depth renderbuffer size
+        glBindRenderbuffer(GL_RENDERBUFFER, camera->depth);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32, width, height);
+
+        // Re-attach updated texture and renderbuffer to FBO (not strictly necessary if the binding points haven't changed, but good for clarity)
+        glBindFramebuffer(GL_FRAMEBUFFER, camera->fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, camera->color, 0);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, camera->depth);
+
+        // Check FBO status
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            printf("Error: Resized Framebuffer is not complete!\n");
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, camera->fbo);
+
+    AWindowRender->RenderBegin(window);
+    glViewport(0, 0, width, height);
+
+    AObject.RenderObjects();
+    // AWindowRender->RenderEnd(window);
+
+    lastRenderedWidth = width;
+    lastRenderedHeight = height;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-struct ACamera ACamera[1] = {{
-    Init,
-    UpdateView,
-    FollowTarget,
-    UpdatePosition,
-}};
+static void Delete(Camera *camera)
+{
+    if (!camera)
+        return;
+
+    free(camera);
+}
+
+struct ACamera ACamera[1] = {{InitOrtho,
+                              InitPerspective,
+                              UpdateView, Render}};

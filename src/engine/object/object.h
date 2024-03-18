@@ -40,30 +40,30 @@ struct SerializedObject
 typedef struct Object Object;
 struct Object
 {
-    ull id;
+    ull id; // 8 bytes
 
     /**
      * Vector 3 position of object in world space
      */
-    vec3 position;
+    vec3 position; // 12 bytes
 
     /**
      * Vector 3 velocity in each direction
      */
-    vec3 velocity;
+    vec3 velocity; // 12 bytes
 
     /**
      * Mass represents the speed at which object falls,
      * and how much velocity is transfered/lost on collision
      */
-    float mass;
+    float mass; // 4 bytes
 
     /**
      * Is a static or dynamic object (Doesn't move or does)
      */
-    bool is_static;
+    bool is_static; // 1 byte
 
-    bool should_render;
+    bool should_render; // 1 byte
 
     /**
      * Collider of object

@@ -22,9 +22,9 @@ struct Model
 {
     bool is_valid;
 
-    int verticies_count;
-    vec3 *verticies;
-    int indicies_count;
+    unsigned int verticies_count;
+    float *verticies;
+    unsigned int indicies_count;
     unsigned int *indicies;
     int uv_count;
     vec3 *uvs;
@@ -34,7 +34,7 @@ struct Model
 
 struct AModel
 {
-    Model *(*Init)(vec4 color);
+    Model *(*Init)();
     void (*Delete)(Model *model);
     Model *(*InitBox)();
     Model *(*InitMesh)(int verticies_count, vec3 *verticies, int indicies_count, unsigned int *indicies, int uv_count, vec3 *uvs, vec4 color);

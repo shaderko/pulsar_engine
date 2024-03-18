@@ -82,6 +82,8 @@ static Window *Init(int width, int height, char *title)
     SDL_GL_MakeCurrent(window->sdl_window, window->context);
     window->render = AWindowRender->Init();
 
+    window->camera = NULL;
+
     return window;
 }
 

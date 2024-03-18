@@ -13,15 +13,22 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+#include <SDL.h>
 
 #include "../../util/util.h"
 
+MAX_BUFFER_SIZE = 65536;
+
 // Init function should be called to load from cache
-static Model *Init(vec4 color)
+static Model *
+Init()
 {
     Model *model = malloc(sizeof(Model));
 
-    memcpy(model->color, color, sizeof(vec4));
+    // Initialize model to zero/null
+    memset(model, 0, sizeof(Model));
+    model->is_valid = false;
 
     return model;
 }
@@ -40,16 +47,16 @@ static Model *InitBox()
 
     model->verticies_count = 8;
     model->verticies = malloc(sizeof(vec3) * model->verticies_count);
-    memcpy(model->verticies[0], (vec3){-1, -1, -1}, sizeof(vec3));
-    memcpy(model->verticies[1], (vec3){1, -1, -1}, sizeof(vec3));
-    memcpy(model->verticies[2], (vec3){1, 1, -1}, sizeof(vec3));
-    memcpy(model->verticies[3], (vec3){-1, 1, -1}, sizeof(vec3));
-    memcpy(model->verticies[4], (vec3){-1, -1, 1}, sizeof(vec3));
-    memcpy(model->verticies[5], (vec3){1, -1, 1}, sizeof(vec3));
-    memcpy(model->verticies[6], (vec3){1, 1, 1}, sizeof(vec3));
-    memcpy(model->verticies[7], (vec3){-1, 1, 1}, sizeof(vec3));
+    // memcpy(model->verticies[0], (vec3){-1, -1, -1}, sizeof(vec3));
+    // memcpy(model->verticies[1], (vec3){1, -1, -1}, sizeof(vec3));
+    // memcpy(model->verticies[2], (vec3){1, 1, -1}, sizeof(vec3));
+    // memcpy(model->verticies[3], (vec3){-1, 1, -1}, sizeof(vec3));
+    // memcpy(model->verticies[4], (vec3){-1, -1, 1}, sizeof(vec3));
+    // memcpy(model->verticies[5], (vec3){1, -1, 1}, sizeof(vec3));
+    // memcpy(model->verticies[6], (vec3){1, 1, 1}, sizeof(vec3));
+    // memcpy(model->verticies[7], (vec3){-1, 1, 1}, sizeof(vec3));
 
-    model->indicies_count = 24;
+    model->indicies_count = 36;
     model->indicies = malloc(sizeof(unsigned int) * model->indicies_count);
     if (!model->indicies)
     {
@@ -59,7 +66,7 @@ static Model *InitBox()
     model->uv_count = 0;
     model->uvs = NULL;
 
-    unsigned int indicesArray[] = {0, 1, 2, 0, 2, 3, 1, 5, 6, 1, 6, 2, 5, 4, 7, 5, 7, 6, 4, 0, 3, 4, 3, 7};
+    unsigned int indicesArray[] = {0, 1, 2, 0, 2, 3, 1, 5, 6, 1, 6, 2, 5, 4, 7, 5, 7, 6, 4, 0, 3, 4, 3, 7, 3, 2, 6, 3, 6, 7, 0, 1, 5, 0, 5, 4};
     memcpy(model->indicies, indicesArray, sizeof(unsigned int) * model->indicies_count);
 
     model->is_valid = true;
@@ -90,100 +97,93 @@ static Model *InitMesh(int verticies_count, vec3 *verticies, int indicies_count,
 
 static Model *Load(const char *path)
 {
+
     FILE *file = fopen(path, "r");
     if (!file)
-    {
-        printf("Failed to open file: %s\n", path);
-        return NULL;
-    }
+        ERROR_RETURN(NULL, "Failed to open file: %s\n", path);
 
-    Model *model = malloc(sizeof(Model));
-    if (!model)
-    {
-        printf("Failed to allocate memory for model\n");
-        fclose(file);
-        return NULL;
-    }
+    Model *model = AModel->Init();
 
-    model->verticies = NULL;
-    model->verticies_count = 0;
-    model->indicies = NULL;
-    model->indicies_count = 0;
-    model->uvs = NULL;
-    model->uv_count = 0;
-    model->is_valid = false;
+    clock_t start, end;
+    start = clock();
 
-    char lineHeader[128];
-    while (fscanf(file, "%s", lineHeader) != EOF)
+    // Allocate space for verticies ahead of time
+    unsigned int current_verticies_size = MAX_BUFFER_SIZE;
+    model->verticies = malloc(sizeof(float) * current_verticies_size);
+    if (!model->verticies)
+        ERROR_EXIT("Failed to allocate memory for vertices\n");
+
+    // Allocate space for indicies ahead of time
+    unsigned int current_indicies_size = MAX_BUFFER_SIZE;
+    model->indicies = malloc(sizeof(unsigned int) * current_indicies_size);
+    if (!model->indicies)
+        ERROR_EXIT("Failed to allocate memory for indicies\n");
+
+    char line[128];
+    while (fgets(line, sizeof(line), file) != NULL)
     {
-        if (strcmp(lineHeader, "v") == 0)
+        if (line[0] == 'v' && line[1] == ' ')
         {
             // Vertices
-            model->verticies = realloc(model->verticies, sizeof(vec3) * (model->verticies_count + 1));
-            if (!model->verticies)
+            if (current_verticies_size <= model->verticies_count + 3)
             {
-                printf("Failed to allocate memory for verticies\n");
-                fclose(file);
-                return NULL;
+                // Allocate more space for verticies
+                current_verticies_size += MAX_BUFFER_SIZE;
+                model->verticies = realloc(model->verticies, sizeof(float) * current_verticies_size);
+                if (!model->verticies)
+                    ERROR_EXIT("Failed to allocate memory for vertices\n");
             }
 
-            fscanf(file, "%f %f %f", &model->verticies[model->verticies_count][0], &model->verticies[model->verticies_count][1], &model->verticies[model->verticies_count][2]);
-            model->verticies_count++;
-        }
-        else if (strcmp(lineHeader, "vt") == 0)
-        {
-            // UVs
-            // temp_uvs = realloc(temp_uvs, sizeof(vec3) * (uvIndex + 1));
-            // fscanf(file, "%f %f %f", &temp_uvs[uvIndex][0], &temp_uvs[uvIndex][1], &temp_uvs[uvIndex][2]);
-            // printf("UV: %f %f %f\n", temp_uvs[uvIndex][0], temp_uvs[uvIndex][1], temp_uvs[uvIndex][2]);
-            // uvIndex++;
-        }
-        else if (strcmp(lineHeader, "f") == 0)
-        {
-            // Faces
-            unsigned int vertexIndex[3], uvIndex[3];
-            // int matches = fscanf(file, "%d/%d/%*d %d/%d/%*d %d/%d/%*d\n",
-            //                      &vertexIndex[0], &uvIndex[0],
-            //                      &vertexIndex[1], &uvIndex[1],
-            //                      &vertexIndex[2], &uvIndex[2]);
-
-            int matches = fscanf(file, "%d/%*d/%*d %d/%*d/%*d %d/%*d/%*dn",
-                                 &vertexIndex[0],
-                                 &vertexIndex[1],
-                                 &vertexIndex[2]);
-
-            model->indicies = realloc(model->indicies, sizeof(unsigned int) * (model->indicies_count + 3));
-            if (!model->indicies)
-            {
-                printf("Failed to allocate memory for indicies\n");
-                fclose(file);
-                return NULL;
-            }
+            // Read vertex coordinates directly into allocated space
+            char *ptr = &line[2]; // Start parsing after "v "
             for (int i = 0; i < 3; i++)
             {
-                model->indicies[model->indicies_count + i] = vertexIndex[i] - 1; // Indices are 1-based in .obj
+                model->verticies[model->verticies_count++] = strtof(ptr, &ptr);
             }
-            model->indicies_count += 3;
-
-            if (matches != 3)
+        }
+        else if (line[0] == 'f' && line[1] == ' ')
+        {
+            if (current_indicies_size <= model->indicies_count + 3)
             {
-                printf("File can't be read by our simple parser\n");
-                fclose(file);
-                return NULL;
+                // Allocate more space for verticies
+                current_indicies_size += MAX_BUFFER_SIZE;
+                model->indicies = realloc(model->indicies, sizeof(unsigned int) * current_indicies_size);
+                if (!model->indicies)
+                    ERROR_EXIT("Failed to allocate memory for indicies\n");
+            }
+
+            char *ptr = &line[2]; // Start parsing after "f "
+            long val;
+            for (int i = 0; i < 3; i++)
+            {
+                errno = 0;
+                val = strtol(ptr, &ptr, 10); // Parse integer
+                if (errno != 0)
+                {
+                    // Handle potential error
+                    break;
+                }
+                model->indicies[model->indicies_count++] = (unsigned int)val - 1; // Adjust indices to be 0-based
+                while (*ptr && *ptr != ' ' && *ptr != '\n')
+                    ++ptr;
             }
         }
     }
 
-    fclose(file);
+    realloc(model->verticies, sizeof(float) * model->verticies_count);
+    if (!model->verticies)
+        ERROR_EXIT("Failed to allocate memory for vertices\n");
+    realloc(model->indicies, sizeof(unsigned int) * model->indicies_count);
+    if (!model->indicies)
+        ERROR_EXIT("Failed to allocate memory for indicies\n");
 
+    fclose(file);
     model->is_valid = true;
 
-    // You may initialize the position, size, rotation, and color in here, or outside this function.
-    memcpy(model->color, (vec4){1, 1, 1, 1}, sizeof(vec4)); // TODO:
+    end = clock(); // End timer
+    double time_taken = ((double)(end - start)) * 1000.0 / CLOCKS_PER_SEC;
 
-    puts("Model loaded successfully");
-    printf("Vert count: %i, indicies count: %i, uv count: %i\n", model->verticies_count, model->indicies_count, model->uv_count);
-
+    printf("Model loaded successfully in %.2fms\nVert count: %u, indices count: %u, uv count: %u\n", time_taken, model->verticies_count, model->indicies_count, model->uv_count);
     return model;
 }
 

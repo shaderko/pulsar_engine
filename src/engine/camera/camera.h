@@ -13,38 +13,32 @@
 #define CAMERA_H
 
 #include <linmath.h>
-#include "../object/object.h"
+#include <glad/glad.h>
+#include "../render/render.h"
 
 typedef struct Camera Camera;
 struct Camera
 {
     vec3 position;
-    vec3 velocity;
-    float distance;
-    float smoothing;
-    Object *target;
+
     mat4x4 view;
     mat4x4 projection;
+
+    vec3 center;
+    vec3 eye;
+    vec3 up;
+
+    GLuint color;
+    GLuint depth;
+    GLuint fbo;
 };
 
 struct ACamera
 {
-    Camera *(*Init)(float distance, float smoothing, vec3 position, Object *target);
-
-    /**
-     * @brief Update view matrix, used for rendering, so update after movement
-     */
-    void (*UpdateView)();
-
-    /**
-     * @brief Follow target, target must be set manually before calling this function
-     */
-    void (*FollowTarget)(vec2 *mousePos);
-
-    /**
-     * @brief Update position of the camera, also updates view matrix
-     */
-    void (*UpdatePosition)(vec3 position);
+    Camera *(*InitOrtho)(float left, float right, float bottom, float top, float near, float far);
+    Camera *(*InitPerspective)(float fov, float aspect, float near, float far);
+    Camera *(*UpdateView)(Camera *camera);
+    void (*Render)(Camera *camera, Window *window, float width, float height);
 };
 
 extern struct ACamera ACamera[1];

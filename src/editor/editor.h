@@ -29,12 +29,23 @@ struct Editor
     ImGuiContext *imgui_context;
 
     Scene *scene;
+
+    // TODO: delete, only for testing
+    bool btn_pressed;
+    vec3 velocity;
+    bool a_pressed;
+    bool d_pressed;
+    bool w_pressed;
+    bool s_pressed;
+    bool space_pressed;
+    bool shift_pressed;
 };
 
 struct AEditor
 {
     Editor *(*Init)();
-    void (*Render)(Editor *editor, SDL_Event *event);
+    void (*UpdateContext)(Editor *editor, SDL_Event *event);
+    void (*Render)(Editor *editor);
 };
 
 extern struct AEditor AEditor[1];

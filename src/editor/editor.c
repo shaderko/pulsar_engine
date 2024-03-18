@@ -12,6 +12,7 @@
 #include "editor.h"
 #include <SDL.h>
 #include "../engine/util/util.h"
+#include "../engine/object/object.h"
 
 static Editor *Init()
 {
@@ -22,7 +23,17 @@ static Editor *Init()
     editor->window = AWindow->Init(1280, 720, "Pulsar Engine Editor");
     editor->scene = NULL;
 
-    SDL_GL_SetSwapInterval(1); // enable vsync
+    // TODO: delete, only for testing
+    editor->btn_pressed = false;
+    memcpy(editor->velocity, (vec3){0, 0, 0}, sizeof(vec3));
+    editor->a_pressed = false;
+    editor->d_pressed = false;
+    editor->w_pressed = false;
+    editor->s_pressed = false;
+    editor->space_pressed = false;
+    editor->shift_pressed = false;
+
+    // SDL_GL_SetSwapInterval(1); // enable vsync
 
     // setup imgui
     editor->imgui_context = igCreateContext(NULL);
@@ -45,13 +56,101 @@ static Editor *Init()
     return editor;
 }
 
-static void Render(Editor *editor, SDL_Event *event)
+static float radius = 50.0f; // Distance from the center of the cube
+
+static void UpdateContext(Editor *editor, SDL_Event *event)
 {
-    SDL_GL_MakeCurrent(editor->window->sdl_window, editor->window->context);
     igSetCurrentContext(editor->imgui_context);
 
     if (event)
         ImGui_ImplSDL2_ProcessEvent(event);
+
+    switch (event->type)
+    {
+    case SDL_MOUSEWHEEL:
+        if (event->wheel.y > 0)
+        {
+            radius -= 10.0f;
+        }
+        else if (event->wheel.y < 0)
+        {
+            radius += 10.0f;
+        }
+        break;
+    case SDL_MOUSEBUTTONDOWN:
+        if (event->button.button == SDL_BUTTON_MIDDLE)
+        {
+            puts("Middle mouse button pressed");
+            editor->btn_pressed = true;
+        }
+        break;
+    case SDL_MOUSEBUTTONUP:
+        if (event->button.button == SDL_BUTTON_MIDDLE)
+        {
+            puts("Middle mouse button released");
+            editor->btn_pressed = false;
+        }
+        break;
+    case SDL_KEYDOWN:
+        if (event->key.keysym.sym == SDLK_a)
+        {
+            editor->a_pressed = true;
+        }
+        else if (event->key.keysym.sym == SDLK_d)
+        {
+            editor->d_pressed = true;
+        }
+        else if (event->key.keysym.sym == SDLK_w)
+        {
+            editor->w_pressed = true;
+        }
+        else if (event->key.keysym.sym == SDLK_s)
+        {
+            editor->s_pressed = true;
+        }
+        else if (event->key.keysym.sym == SDLK_SPACE)
+        {
+            editor->space_pressed = true;
+        }
+        else if (event->key.keysym.sym == SDLK_LSHIFT)
+        {
+            editor->shift_pressed = true;
+        }
+        break;
+    case SDL_KEYUP:
+        if (event->key.keysym.sym == SDLK_a)
+        {
+            editor->a_pressed = false;
+        }
+        else if (event->key.keysym.sym == SDLK_d)
+        {
+            editor->d_pressed = false;
+        }
+        else if (event->key.keysym.sym == SDLK_w)
+        {
+            editor->w_pressed = false;
+        }
+        else if (event->key.keysym.sym == SDLK_s)
+        {
+            editor->s_pressed = false;
+        }
+        else if (event->key.keysym.sym == SDLK_SPACE)
+        {
+            editor->space_pressed = false;
+        }
+        else if (event->key.keysym.sym == SDLK_LSHIFT)
+        {
+            editor->shift_pressed = false;
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+static void Render(Editor *editor)
+{
+    SDL_GL_MakeCurrent(editor->window->sdl_window, editor->window->context);
 
     ImGuiIO *ioptr = igGetIO();
 
@@ -117,24 +216,225 @@ static void Render(Editor *editor, SDL_Event *event)
         igEndMainMenuBar();
     }
 
-    // show a simple window that we created ourselves.
     {
-        float f = 0.0f;
-        int counter = 0;
-
         igBegin("Performance window", NULL, 0);
         igText("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / igGetIO()->Framerate, igGetIO()->Framerate);
-        igSameLine(0.0f, -1.0f);
-        igText("counter = %d", counter);
+
+        // char input[256] = "";
+        // igInputText("Text", &input, 256, ImGuiInputTextFlags_EnterReturnsTrue, NULL, NULL);
+
+        bool createSingleObject = igButton("Create 1 object", (ImVec2){200, 20});
+        if (createSingleObject)
+        {
+            if (!editor->scene)
+            {
+                puts("Creating new scene...");
+                editor->scene = AScene->Init((vec3){1, 1, 1});
+            }
+
+            Model *model = AModel->Load("assets/untitled.obj");
+
+            Object *box = AObject.InitMesh(false, true, 1, (vec3){10, 10, 10}, (vec3){100, 100, 100}, model);
+            AScene->Add(editor->scene, box);
+        }
+
+        bool createFiveObjects = igButton("Create 5 objects", (ImVec2){200, 20});
+        if (createFiveObjects)
+        {
+            if (!editor->scene)
+            {
+                puts("Creating new scene...");
+                editor->scene = AScene->Init((vec3){1, 1, 1});
+            }
+
+            for (int k = 0; k < 5; k++)
+            {
+                Model *model = AModel->Load("assets/bunny.obj");
+
+                Object *box = AObject.InitMesh(false, true, 1, (vec3){k * 10, 10, 10}, (vec3){100, 100, 100}, model);
+                AScene->Add(editor->scene, box);
+            }
+        }
+
+        bool createLowObjects = igButton("Create 125 objects", (ImVec2){200, 20});
+        if (createLowObjects)
+        {
+            if (!editor->scene)
+            {
+                puts("Creating new scene...");
+                editor->scene = AScene->Init((vec3){1, 1, 1});
+            }
+
+            for (int i = 0; i < 5; i++)
+            {
+                for (int j = 0; j < 5; j++)
+                {
+                    for (int k = 0; k < 5; k++)
+                    {
+                        Model *model = AModel->Load("assets/bunny.obj");
+
+                        Object *box = AObject.InitMesh(false, true, 1, (vec3){j * 10, i * 10, k * 10}, (vec3){100, 100, 100}, model);
+                        AScene->Add(editor->scene, box);
+                    }
+                }
+            }
+        }
+
+        bool createObjects = igButton("Create 15625 objects", (ImVec2){200, 20});
+        if (createObjects)
+        {
+            if (!editor->scene)
+            {
+                puts("Creating new scene...");
+                editor->scene = AScene->Init((vec3){1, 1, 1});
+            }
+
+            for (int i = 0; i < 25; i++)
+            {
+                for (int j = 0; j < 25; j++)
+                {
+                    for (int k = 0; k < 25; k++)
+                    {
+                        Object *box = AObject.InitBox(false, true, 1, (vec3){j * 10, i * 10, k * 10}, (vec3){10, 10, 10});
+                        AScene->Add(editor->scene, box);
+                    }
+                }
+            }
+        }
+        if (editor->scene)
+        {
+            igText("Objects: %d", editor->scene->objects_size);
+            int indicies = 0;
+            for (int i = 0; i < editor->scene->objects_size; i++)
+            {
+                indicies += editor->scene->objects[i]->renderer->model->indicies_count;
+            }
+            igText("Indicies: %d", indicies);
+            igText("Triangles: %d", indicies / 3);
+            int verticies = 0;
+            for (int i = 0; i < editor->scene->objects_size; i++)
+            {
+                verticies += editor->scene->objects[i]->renderer->model->verticies_count;
+            }
+            igText("Verticies: %d", verticies);
+        }
 
         igEnd();
     }
 
-    // {
-    //     // camera window
-    //     igBegin("Camera", NULL, 0);
-    //     // igSliderFloat("FOV", &editor->camera.fov, 10.0f, 170.0f, "%.1f", NULL);
-    // }
+    if (editor->window->camera)
+    {
+        igBegin("Camera window", NULL, 0);
+
+        bool is_pressed = igButton("Create camera", (ImVec2){100, 20});
+        if (is_pressed)
+        {
+            free(editor->window->camera);
+
+            editor->window->camera = ACamera->InitPerspective(0.78539816339f, (float)1920 / (float)1080, 0.0001f, 100000.0f);
+        }
+
+        igSliderFloat("UP_X", &editor->window->camera->up[0], 0.0f, 100.0f, "%.1f", NULL);
+        igSliderFloat("UP_Y", &editor->window->camera->up[1], 0.0f, 100.0f, "%.1f", NULL);
+        igSliderFloat("UP_Z", &editor->window->camera->up[2], 0.0f, 100.0f, "%.1f", NULL);
+
+        igSliderFloat("CENTER_X", &editor->window->camera->center[0], 0.0f, 100.0f, "%.1f", NULL);
+        igSliderFloat("CENTER_Y", &editor->window->camera->center[1], 0.0f, 100.0f, "%.1f", NULL);
+        igSliderFloat("CENTER_Z", &editor->window->camera->center[2], 0.0f, 100.0f, "%.1f", NULL);
+
+        igSliderFloat("POSITION_X", &editor->window->camera->position[0], 0.0f, 100.0f, "%.1f", NULL);
+        igSliderFloat("POSITION_Y", &editor->window->camera->position[1], 0.0f, 100.0f, "%.1f", NULL);
+        igSliderFloat("POSITION_Z", &editor->window->camera->position[2], 0.0f, 100.0f, "%.1f", NULL);
+
+        igEnd();
+
+        static int lastX = 0, lastY = 0; // Static variables to remember the last position
+        int x, y;
+        SDL_GetMouseState(&x, &y);
+        if (editor->btn_pressed)
+        {
+            static float theta = 0;      // Azimuthal angle in radians
+            static float phi = M_PI / 4; // Polar angle in radians (start with a 45-degree angle for elevation)
+
+            int deltaX = x - lastX;
+            int deltaY = y - lastY;
+
+            lastX = x;
+            lastY = y;
+
+            float sensitivity = 0.005f; // Adjust this value to control the speed of the rotation
+            theta += deltaX * sensitivity;
+            phi += deltaY * sensitivity; // Subtracting so that dragging up moves the camera up
+
+            // Clamp phi to prevent the camera from flipping over at the poles
+            phi = fmax(0.1f, fmin(M_PI - 0.1f, phi));
+
+            editor->window->camera->position[0] = (radius * sin(phi) * cos(theta)) + editor->window->camera->center[0];
+            editor->window->camera->position[1] = (radius * cos(phi)) + editor->window->camera->center[1];
+            editor->window->camera->position[2] = (radius * sin(phi) * sin(theta)) + editor->window->camera->center[2];
+        }
+        else
+        {
+            lastX = x;
+            lastY = y;
+
+            if (editor->w_pressed)
+            {
+                editor->velocity[2] += 0.1f;
+            }
+            else if (editor->s_pressed)
+            {
+                editor->velocity[2] -= 0.1f;
+            }
+            else if (editor->a_pressed)
+            {
+                editor->velocity[0] += 0.1f;
+            }
+            else if (editor->d_pressed)
+            {
+                editor->velocity[0] -= 0.1f;
+            }
+            else if (editor->space_pressed)
+            {
+                editor->velocity[1] += 0.1f;
+            }
+            else if (editor->shift_pressed)
+            {
+                editor->velocity[1] -= 0.1f;
+            }
+            else
+            {
+                editor->velocity[0] = 0;
+                editor->velocity[1] = 0;
+                editor->velocity[2] = 0;
+            }
+
+            editor->window->camera->center[0] += editor->velocity[0];
+            editor->window->camera->center[1] += editor->velocity[1];
+            editor->window->camera->center[2] += editor->velocity[2];
+        }
+    }
+
+    if (editor->window->camera)
+    {
+        igBegin("Camera Render", NULL, 0);
+
+        ImVec2 windowSize;
+        igGetContentRegionAvail(&windowSize);
+
+        ACamera->Render(editor->window->camera, editor->window, windowSize.x, windowSize.y);
+
+        ImTextureID myTextureID = (ImTextureID)editor->window->camera->color; // Cast your texture identifier to ImTextureID
+        ImVec2 imageSize = (ImVec2){windowSize.x, windowSize.y};              // Display the image as 100x100 pixels
+        ImVec2 uv0 = (ImVec2){0, 0};                                          // Use the whole texture
+        ImVec2 uv1 = (ImVec2){1, 1};
+        ImVec4 tintCol = (ImVec4){1.0f, 1.0f, 1.0f, 1.0f};
+        ImVec4 borderCol = (ImVec4){0.0f, 0.0f, 0.0f, 0.0f};
+
+        igImage(myTextureID, imageSize, uv0, uv1, tintCol, borderCol);
+
+        igEnd();
+    }
 
     // render
     igRender();
@@ -155,4 +455,4 @@ static void Render(Editor *editor, SDL_Event *event)
     SDL_GL_SwapWindow(editor->window->sdl_window);
 }
 
-struct AEditor AEditor[1] = {{Init, Render}};
+struct AEditor AEditor[1] = {{Init, UpdateContext, Render}};

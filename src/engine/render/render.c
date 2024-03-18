@@ -61,7 +61,7 @@ static void RenderInitMesh(WindowRender *render)
 static void RenderMesh(Model *model, vec3 position, vec3 scale)
 {
     glBindBuffer(GL_ARRAY_BUFFER, active_render->vbo);
-    glBufferData(GL_ARRAY_BUFFER, model->verticies_count * sizeof(vec3), model->verticies, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, model->verticies_count * sizeof(float), model->verticies, GL_STATIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, active_render->ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, model->indicies_count * sizeof(unsigned int), model->indicies, GL_STATIC_DRAW);
@@ -79,7 +79,7 @@ static void RenderMesh(Model *model, vec3 position, vec3 scale)
 
     glBindVertexArray(active_render->vao);
 
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glDrawElements(GL_TRIANGLES, model->indicies_count, GL_UNSIGNED_INT, NULL);
 
     glBindVertexArray(0);
@@ -91,9 +91,8 @@ static void RenderBegin(Window *window)
     active_render = window->render;
     glUseProgram(window->render->shader);
 
-    float aspect_ratio = (float)window->width / (float)window->height;
-    mat4x4_ortho(window->camera->projection, -window->camera->distance * aspect_ratio, window->camera->distance * aspect_ratio, -window->camera->distance, window->camera->distance, 1.0f, 100000.0f);
     glEnable(GL_DEPTH_TEST);
+
     glUniformMatrix4fv(glGetUniformLocation(window->render->shader, "projection"), 1, GL_FALSE, &window->camera->projection[0][0]);
     glUniformMatrix4fv(glGetUniformLocation(window->render->shader, "view"), 1, GL_FALSE, &window->camera->view[0][0]);
 
