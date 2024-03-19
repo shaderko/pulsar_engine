@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <glad/glad.h>
 #include <SDL.h>
 
 #include "../../util/util.h"
@@ -42,25 +43,24 @@ static void Delete(Model *model)
 
 static Model *InitBox()
 {
-    Model *model = AModel->Init((vec4){1, 1, 1, 1});
+    Model *model = AModel->Init();
 
-    model->verticies_count = 8;
-    model->verticies = malloc(sizeof(vec3) * model->verticies_count);
-    // memcpy(model->verticies[0], (vec3){-1, -1, -1}, sizeof(vec3));
-    // memcpy(model->verticies[1], (vec3){1, -1, -1}, sizeof(vec3));
-    // memcpy(model->verticies[2], (vec3){1, 1, -1}, sizeof(vec3));
-    // memcpy(model->verticies[3], (vec3){-1, 1, -1}, sizeof(vec3));
-    // memcpy(model->verticies[4], (vec3){-1, -1, 1}, sizeof(vec3));
-    // memcpy(model->verticies[5], (vec3){1, -1, 1}, sizeof(vec3));
-    // memcpy(model->verticies[6], (vec3){1, 1, 1}, sizeof(vec3));
-    // memcpy(model->verticies[7], (vec3){-1, 1, 1}, sizeof(vec3));
+    model->verticies_count = 24;
+    model->verticies = malloc(sizeof(float) * model->verticies_count);
+    float verticies[] = {-1, -1, -1,
+                         1, -1, -1,
+                         1, 1, -1,
+                         -1, 1, -1,
+                         -1, -1, 1,
+                         1, -1, 1,
+                         1, 1, 1,
+                         -1, 1, 1};
+    memcpy(model->verticies, verticies, sizeof(float) * model->verticies_count);
 
     model->indicies_count = 36;
     model->indicies = malloc(sizeof(unsigned int) * model->indicies_count);
     if (!model->indicies)
-    {
         ERROR_EXIT("Couldn't allocate memory for indicies!\n");
-    }
 
     model->uv_count = 0;
     model->uvs = NULL;
@@ -69,6 +69,24 @@ static Model *InitBox()
     memcpy(model->indicies, indicesArray, sizeof(unsigned int) * model->indicies_count);
 
     model->is_valid = true;
+
+    // Upload the data to the GPU so it can be reused
+    glGenVertexArrays(1, &model->vao);
+    glGenBuffers(1, &model->vbo);
+    glGenBuffers(1, &model->ebo);
+
+    glBindVertexArray(model->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, model->vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model->ebo);
+
+    glBufferData(GL_ARRAY_BUFFER, model->verticies_count * sizeof(float), model->verticies, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, model->indicies_count * sizeof(unsigned int), model->indicies, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 
     return model;
 }
@@ -219,17 +237,17 @@ static Model *Load(const char *path)
 
     char *chunk = calloc(1, MAX_CHUNK_SIZE);
     if (!chunk)
-    {
         ERROR_EXIT("Failed to allocate memory for file chunk\n");
-    }
 
     size_t num_of_threads = 0;
     SDL_Thread **threadIds = NULL;
     model_load_helper_args **args_list = NULL;
 
+    // Read the file in chunks to avoid using too much memory
     size_t bytes_read;
     while ((bytes_read = fread(chunk, sizeof(char), MAX_CHUNK_SIZE, file)) > 0)
     {
+        // Separate each chunk processing into a thread
         model_load_helper_args *args = malloc(sizeof(model_load_helper_args));
 
         args->chunk = malloc(bytes_read);
@@ -245,6 +263,7 @@ static Model *Load(const char *path)
         num_of_threads++;
     }
 
+    // Wait for all threads to finish
     for (size_t i = 0; i < num_of_threads; i++)
     {
         SDL_WaitThread(threadIds[i], NULL);
@@ -253,13 +272,14 @@ static Model *Load(const char *path)
     unsigned int total_verticies = 0;
     unsigned int total_indicies = 0;
 
+    // Count all verticies and indicies so we can allocate the correct amount of memory
     for (size_t i = 0; i < num_of_threads; i++)
     {
-        // counting verticies and indicies
         total_verticies += args_list[i]->verticies_count;
         total_indicies += args_list[i]->indicies_count;
     }
 
+    // Allocate the mentioned memory
     model->verticies = malloc(sizeof(float) * total_verticies);
     if (!model->verticies)
         ERROR_EXIT("Failed to allocate memory for model verticies\n");
@@ -273,6 +293,7 @@ static Model *Load(const char *path)
     unsigned int current_verticies_count = 0;
     unsigned int current_indicies_count = 0;
 
+    // Merge all the verticies and indicies together and free each thread's memory
     for (size_t i = 0; i < num_of_threads; i++)
     {
         model_load_helper_args *arg = args_list[i];
@@ -289,17 +310,37 @@ static Model *Load(const char *path)
         free(arg);
     }
 
+    // Clean up
     free(chunk);
     free(threadIds);
     free(args_list);
-
     fclose(file);
+
     model->is_valid = true;
+
+    // Upload the data to the GPU so it can be reused
+    glGenVertexArrays(1, &model->vao);
+    glGenBuffers(1, &model->vbo);
+    glGenBuffers(1, &model->ebo);
+
+    glBindVertexArray(model->vao);
+    glBindBuffer(GL_ARRAY_BUFFER, model->vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model->ebo);
+
+    glBufferData(GL_ARRAY_BUFFER, model->verticies_count * sizeof(float), model->verticies, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, model->indicies_count * sizeof(unsigned int), model->indicies, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 
     end = clock(); // End timer
     double time_taken = ((double)(end - start)) * 1000.0 / CLOCKS_PER_SEC;
 
     printf("Model loaded successfully in %.2fms\nVert count: %u, indices count: %u, uv count: %u\n", time_taken, model->verticies_count, model->indicies_count, model->uv_count);
+
     return model;
 }
 

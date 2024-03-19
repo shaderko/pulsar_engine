@@ -35,7 +35,7 @@ struct AWindowRender
     void (*Destroy)(WindowRender *render);
 
     void (*RenderInitMesh)(WindowRender *render);
-    void (*RenderMesh)(Model *model, vec3 position, vec3 scale);
+    void (*RenderMesh)(Model *model, mat4x4 transform);
 
     // Render
     void (*RenderBegin)(Window *window);

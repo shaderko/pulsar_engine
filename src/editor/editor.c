@@ -295,7 +295,7 @@ static void Render(Editor *editor)
                 {
                     for (int k = 0; k < 25; k++)
                     {
-                        Object *box = AObject.InitBox(false, true, 1, (vec3){j * 10, i * 10, k * 10}, (vec3){10, 10, 10});
+                        Object *box = AObject.InitBox(false, true, 1, (vec3){j * 10, i * 10, k * 10}, (vec3){100, 100, 100});
                         AScene->Add(editor->scene, box);
                     }
                 }

@@ -58,28 +58,13 @@ static void RenderInitMesh(WindowRender *render)
     // glEnableVertexAttribArray(1);
 }
 
-static void RenderMesh(Model *model, vec3 position, vec3 scale)
+static void RenderMesh(Model *model, mat4x4 transform)
 {
-    glBindBuffer(GL_ARRAY_BUFFER, active_render->vbo);
-    glBufferData(GL_ARRAY_BUFFER, model->verticies_count * sizeof(float), model->verticies, GL_STATIC_DRAW);
+    glUniformMatrix4fv(glGetUniformLocation(active_render->shader, "model"), 1, GL_FALSE, &transform[0][0]);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, active_render->ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, model->indicies_count * sizeof(unsigned int), model->indicies, GL_STATIC_DRAW);
+    glBindVertexArray(model->vao);
 
-    mat4x4 model_matrix = {
-        {1, 0, 0, 0},
-        {0, 1, 0, 0},
-        {0, 0, 1, 0},
-        {0, 0, 0, 1}};
-
-    mat4x4_translate(model_matrix, position[0], position[1], position[2]);
-    mat4x4_scale_aniso(model_matrix, model_matrix, scale[0] / 2, scale[1] / 2, scale[2] / 2);
-
-    glUniformMatrix4fv(glGetUniformLocation(active_render->shader, "model"), 1, GL_FALSE, &model_matrix[0][0]);
-
-    glBindVertexArray(active_render->vao);
-
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     glDrawElements(GL_TRIANGLES, model->indicies_count, GL_UNSIGNED_INT, NULL);
 
     glBindVertexArray(0);

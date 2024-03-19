@@ -73,8 +73,8 @@ static bool Collide(Object *object1, Object *object2)
 
     vec3 pos1;
     vec3 pos2;
-    vec3_add(pos1, object1->position, object1->collider->position);
-    vec3_add(pos2, object2->position, object2->collider->position);
+    // vec3_add(pos1, object1->position, object1->collider->position);
+    // vec3_add(pos2, object2->position, object2->collider->position);
 
     // Calculate the half-width and half-height for both squares
     float half_width1 = square1->size[0] / 2.0f;

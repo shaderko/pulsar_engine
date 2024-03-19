@@ -32,9 +32,9 @@ static Object *Init()
 {
     Object *object = malloc(sizeof(Object));
     if (!object)
-    {
         ERROR_EXIT("Object memory couldn't be allocated!\n");
-    }
+
+    memset(object, 0, sizeof(Object));
 
     object->id = generate_random_id();
     printf("Initialized object with id %llu\n", object->id);
@@ -67,15 +67,12 @@ static Object *Create(bool is_static, bool should_render, float mass, vec3 posit
     Object *object = Init();
 
     /**
-     * Initialize all the main variables like is_static...
+     * Initialize all the main variables
      */
-    memcpy(object->position, position, sizeof(vec3));
+    mat4x4_translate(object->transform, position[0], position[1], position[2]);
     object->mass = mass;
     object->is_static = is_static;
     object->should_render = should_render;
-
-    object->collider = NULL;
-    object->renderer = NULL;
 
     return object;
 }
@@ -142,14 +139,7 @@ static Object *GetObjectByIndex(int index)
  */
 static void Render(Object *object)
 {
-    AObject.ARenderer->Render(object->renderer, object->position);
-}
-
-static void RenderPosition(Object *object, vec3 position)
-{
-    vec3 final_position;
-    vec3_add(final_position, position, object->position);
-    AObject.ARenderer->Render(object->renderer, final_position);
+    AObject.ARenderer->Render(object->renderer, object->transform);
 }
 
 /**
@@ -198,9 +188,9 @@ static void Update(Object *object)
 
     ApplyGravity(object);
 
-    object->position[0] += object->velocity[0];
-    object->position[1] += object->velocity[1];
-    object->position[2] += object->velocity[2];
+    // object->position[0] += object->velocity[0];
+    // object->position[1] += object->velocity[1];
+    // object->position[2] += object->velocity[2];
 }
 
 /**
@@ -222,7 +212,7 @@ static void UpdateObjects()
  */
 static void UpdatePosition(Object *object, vec3 position)
 {
-    memcpy(object->position, position, sizeof(vec3));
+    mat4x4_translate(object->transform, position[0], position[1], position[2]);
 }
 
 /**
@@ -238,7 +228,8 @@ static SerializedDerived Serialize(Object *object)
 
     SerializedObject serialize_obj = {
         object->id,
-        {object->position[0], object->position[1], object->position[2]},
+        {0, 0, 0},
+        // {object->position[0], object->position[1], object->position[2]},
         {object->velocity[0], object->velocity[1], object->velocity[2]},
         object->mass,
         object->is_static,
@@ -277,7 +268,8 @@ static SerializedDerived SerializePartial(Object *object)
 {
     SerializedObject serialize_obj = {
         object->id,
-        {object->position[0], object->position[1], object->position[2]},
+        {0, 0, 0},
+        // {object->position[0], object->position[1], object->position[2]},
         {object->velocity[0], object->velocity[1], object->velocity[2]},
         object->mass,
         object->is_static,
@@ -313,9 +305,9 @@ static Object *Deserialize(SerializedObject *object, Scene *scene)
         {
             if (ObjectsArray[x]->id == object->id)
             {
-                ObjectsArray[x]->position[0] = object->position[0];
-                ObjectsArray[x]->position[1] = object->position[1];
-                ObjectsArray[x]->position[2] = object->position[2];
+                // ObjectsArray[x]->position[0] = object->position[0];
+                // ObjectsArray[x]->position[1] = object->position[1];
+                // ObjectsArray[x]->position[2] = object->position[2];
                 ObjectsArray[x]->velocity[0] = object->velocity[0];
                 ObjectsArray[x]->velocity[1] = object->velocity[1];
                 ObjectsArray[x]->velocity[2] = object->velocity[2];
@@ -329,9 +321,9 @@ static Object *Deserialize(SerializedObject *object, Scene *scene)
         {
             if (scene->objects[x]->id == object->id)
             {
-                scene->objects[x]->position[0] = object->position[0];
-                scene->objects[x]->position[1] = object->position[1];
-                scene->objects[x]->position[2] = object->position[2];
+                // scene->objects[x]->position[0] = object->position[0];
+                // scene->objects[x]->position[1] = object->position[1];
+                // scene->objects[x]->position[2] = object->position[2];
                 scene->objects[x]->velocity[0] = object->velocity[0];
                 scene->objects[x]->velocity[1] = object->velocity[1];
                 scene->objects[x]->velocity[2] = object->velocity[2];
@@ -367,7 +359,6 @@ struct AObject AObject =
         .InitMesh = InitMesh,
         .GetObjectByIndex = GetObjectByIndex,
         .Render = Render,
-        .RenderPosition = RenderPosition,
         .RenderObjects = RenderObjects,
         .Update = Update,
         .UpdateObjects = UpdateObjects,

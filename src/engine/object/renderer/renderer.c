@@ -42,9 +42,14 @@ static Renderer *Init(vec3 position, vec3 rotation, vec3 scale)
         ERROR_EXIT("error allocating memory for collider.");
     }
 
-    memcpy(renderer->position, position, sizeof(vec3));
-    memcpy(renderer->rotation, rotation, sizeof(vec3));
-    memcpy(renderer->scale, scale, sizeof(vec3));
+    mat4x4_identity(renderer->transform);
+    mat4x4_translate(renderer->transform, position[0], position[1], position[2]);
+    // TODO: rotate
+    mat4x4 scale_matrix = {1, 0, 0, 0,
+                           0, 1, 0, 0,
+                           0, 0, 1, 0,
+                           0, 0, 0, 1};
+    mat4x4_scale_aniso(renderer->transform, scale_matrix, scale[0], scale[1], scale[2]);
 
     return renderer;
 }
@@ -55,7 +60,7 @@ static Renderer *Init(vec3 position, vec3 rotation, vec3 scale)
  * @param renderer
  * @param position
  */
-static void Render(Renderer *renderer, vec3 position)
+static void Render(Renderer *renderer, mat4x4 transform)
 {
     if (!renderer || !renderer->model)
     {
@@ -63,11 +68,11 @@ static void Render(Renderer *renderer, vec3 position)
         return;
     }
 
+    mat4x4 world_position = {0};
     // Adjust the position to be relative to world space by adding the position of the renderer to the position of the object
-    vec3 world_position;
-    vec3_add(world_position, position, renderer->position);
+    mat4x4_add(world_position, transform, renderer->transform);
 
-    AWindowRender->RenderMesh(renderer->model, world_position, renderer->scale); // renderer->rotation, renderer->scale TODO:
+    AWindowRender->RenderMesh(renderer->model, world_position); // renderer->rotation, renderer->scale TODO:
 }
 
 /**
@@ -116,9 +121,9 @@ static SerializedRenderer Serialize(Renderer *renderer)
 {
     SerializedRenderer serialized = {0};
 
-    memcpy(serialized.position, renderer->position, sizeof(vec3));
-    memcpy(serialized.rotation, renderer->rotation, sizeof(vec3));
-    memcpy(serialized.scale, renderer->scale, sizeof(vec3));
+    // memcpy(serialized.position, renderer->position, sizeof(vec3));
+    // memcpy(serialized.rotation, renderer->rotation, sizeof(vec3));
+    // memcpy(serialized.scale, renderer->scale, sizeof(vec3));
 
     serialized.derived = AModel->Serialize(renderer->model);
 
@@ -135,9 +140,9 @@ static Renderer *Deserialize(SerializedRenderer serialized_renderer)
 {
     Renderer *renderer = malloc(sizeof(Renderer));
 
-    memcpy(renderer->position, serialized_renderer.position, sizeof(vec3));
-    memcpy(renderer->rotation, serialized_renderer.rotation, sizeof(vec3));
-    memcpy(renderer->scale, serialized_renderer.scale, sizeof(vec3));
+    // memcpy(renderer->position, serialized_renderer.position, sizeof(vec3));
+    // memcpy(renderer->rotation, serialized_renderer.rotation, sizeof(vec3));
+    // memcpy(renderer->scale, serialized_renderer.scale, sizeof(vec3));
 
     renderer->model = AModel->Deserialize(serialized_renderer.derived);
 

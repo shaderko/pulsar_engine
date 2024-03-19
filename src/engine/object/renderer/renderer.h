@@ -12,6 +12,7 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
+#include <inttypes.h>
 #include <stdlib.h>
 #include <linmath.h>
 
@@ -30,24 +31,10 @@ struct SerializedRenderer
 typedef struct Renderer Renderer;
 struct Renderer
 {
-    /**
-     * Local position to object
-     */
-    vec3 position;
+    // Locale transform
+    mat4x4 transform;
 
-    /**
-     * Local rotation to object
-     */
-    vec3 rotation;
-
-    /**
-     * Local scale to object
-     */
-    vec3 scale;
-
-    /**
-     * Model to be rendered
-     */
+    // Model to render
     Model *model;
 };
 
@@ -62,7 +49,7 @@ struct ARenderer
     /**
      * Render the renderer
      */
-    void (*Render)(Renderer *renderer, vec3 position);
+    void (*Render)(Renderer *renderer, mat4x4 transform);
 
     /**
      * Initialize a renderer with a box model

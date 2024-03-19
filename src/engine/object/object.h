@@ -45,7 +45,7 @@ struct Object
     /**
      * Vector 3 position of object in world space
      */
-    vec3 position; // 12 bytes
+    mat4x4 transform; // 64 bytes
 
     /**
      * Vector 3 velocity in each direction
@@ -100,7 +100,6 @@ struct AObject
      * Render object in position of object with the local position of renderer
      */
     void (*Render)(Object *object);
-    void (*RenderPosition)(Object *object, vec3 position);
     void (*RenderObjects)();
 
     /**

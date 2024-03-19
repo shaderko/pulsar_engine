@@ -12,6 +12,7 @@
 #ifndef MODEL_H
 #define MODEL_H
 
+#include <inttypes.h>
 #include <stdbool.h>
 #include <linmath.h>
 
@@ -31,7 +32,9 @@ struct Model
     int uv_count;
     vec3 *uvs;
 
-    mat4x4 transform;
+    uint32_t vao;
+    uint32_t vbo;
+    uint32_t ebo;
 
     vec4 color;
 };
