@@ -38,6 +38,11 @@ static void Delete(Model *model)
     free(model->verticies);
     free(model->indicies);
     free(model->uvs);
+
+    glDeleteVertexArrays(1, &model->vao);
+    glDeleteBuffers(1, &model->vbo);
+    glDeleteBuffers(1, &model->ebo);
+
     free(model);
 }
 

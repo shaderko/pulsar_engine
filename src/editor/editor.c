@@ -190,6 +190,18 @@ static void Render(Editor *editor)
         }
         if (igBeginMenu("Scene", true))
         {
+            if (igMenuItem_Bool("New", NULL, false, true))
+            {
+                puts("Creating new scene...");
+
+                if (!editor->scene)
+                    editor->scene = AScene->Init((vec3){1, 1, 1});
+                else
+                {
+                    AScene->Delete(editor->scene);
+                    editor->scene = AScene->Init((vec3){1, 1, 1});
+                }
+            }
             if (igMenuItem_Bool("Load", NULL, false, true))
             {
                 puts("Loading scene...");
@@ -251,7 +263,7 @@ static void Render(Editor *editor)
             {
                 Model *model = AModel->Load("assets/bunny.obj");
 
-                Object *box = AObject.InitMesh(false, true, 1, (vec3){k * 10, 10, 10}, (vec3){100, 100, 100}, model);
+                Object *box = AObject.InitMesh(false, true, 1, (vec3){k * 100, 10, 10}, (vec3){100, 100, 100}, model);
                 AScene->Add(editor->scene, box);
             }
         }
@@ -303,20 +315,20 @@ static void Render(Editor *editor)
         }
         if (editor->scene)
         {
-            igText("Objects: %d", editor->scene->objects_size);
-            int indicies = 0;
-            for (int i = 0; i < editor->scene->objects_size; i++)
-            {
-                indicies += editor->scene->objects[i]->renderer->model->indicies_count;
-            }
-            igText("Indicies: %d", indicies);
-            igText("Triangles: %d", indicies / 3);
-            int verticies = 0;
-            for (int i = 0; i < editor->scene->objects_size; i++)
-            {
-                verticies += editor->scene->objects[i]->renderer->model->verticies_count;
-            }
-            igText("Verticies: %d", verticies);
+            // igText("Objects: %d", editor->scene->objects_size);
+            // int indicies = 0;
+            // for (int i = 0; i < editor->scene->objects_size; i++)
+            // {
+            //     indicies += editor->scene->objects[i]->renderer->model->indicies_count;
+            // }
+            // igText("Indicies: %d", indicies);
+            // igText("Triangles: %d", indicies / 3);
+            // int verticies = 0;
+            // for (int i = 0; i < editor->scene->objects_size; i++)
+            // {
+            //     verticies += editor->scene->objects[i]->renderer->model->verticies_count;
+            // }
+            // igText("Verticies: %d", verticies);
         }
 
         igEnd();
@@ -422,7 +434,7 @@ static void Render(Editor *editor)
         ImVec2 windowSize;
         igGetContentRegionAvail(&windowSize);
 
-        ACamera->Render(editor->window->camera, editor->window, windowSize.x, windowSize.y);
+        ACamera->Render(editor->window->camera, editor->window, windowSize.x, windowSize.y, editor->scene);
 
         ImTextureID myTextureID = (ImTextureID)editor->window->camera->color; // Cast your texture identifier to ImTextureID
         ImVec2 imageSize = (ImVec2){windowSize.x, windowSize.y};              // Display the image as 100x100 pixels

@@ -36,10 +36,13 @@ struct AWindowRender
 
     void (*RenderInitMesh)(WindowRender *render);
     void (*RenderMesh)(Model *model, mat4x4 transform);
+    void (*BatchRenderMesh)(Model *model, mat4x4 *transforms, size_t instanceCount);
 
     // Render
     void (*RenderBegin)(Window *window);
     void (*RenderEnd)(Window *window);
+
+    void (*RenderLight)(Window *window, vec3 position);
 };
 
 extern struct AWindowRender AWindowRender[1];

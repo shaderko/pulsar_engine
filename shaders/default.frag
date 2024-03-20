@@ -51,6 +51,6 @@ void main()
 
     // Combine results
     vec3 result = (ambient + diffuse) * attenuation;
-    // FragColor = vec4(result, 1.0);
-    FragColor = vec4(vec3(1, 1, 1), 1.0);
+    FragColor = vec4(result, 1.0);
+    // FragColor = vec4(vec3(1, 1, 1), 1.0);
 }

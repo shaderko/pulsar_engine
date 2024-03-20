@@ -188,29 +188,29 @@ static void SendData(Room *room)
         return;
     }
 
-    for (int i = 0; i < room->scene->objects_size; i++)
-    {
-        Object *object = room->scene->objects[i];
-        if (!object)
-        {
-            ERROR_EXIT("Object is NULL!\n");
-        }
-        for (int j = 0; j < room->clients_size; j++)
-        {
-            ServerClient *client = room->clients[j];
-            if (!client)
-            {
-                ERROR_EXIT("Client is NULL!\n");
-            }
+    // for (int i = 0; i < room->scene->objects_size; i++)
+    // {
+    //     Object *object = room->scene->objects[i];
+    //     if (!object)
+    //     {
+    //         ERROR_EXIT("Object is NULL!\n");
+    //     }
+    //     for (int j = 0; j < room->clients_size; j++)
+    //     {
+    //         ServerClient *client = room->clients[j];
+    //         if (!client)
+    //         {
+    //             ERROR_EXIT("Client is NULL!\n");
+    //         }
 
-            if (!client->synchronized)
-            {
-                continue;
-            }
+    //         if (!client->synchronized)
+    //         {
+    //             continue;
+    //         }
 
-            AServer->SendObject(object, client->id);
-        }
-    }
+    //         AServer->SendObject(object, client->id);
+    //     }
+    // }
 }
 
 /**
@@ -307,17 +307,17 @@ static void JoinClient(Room *room, ServerClientHandle *client_stream)
     }
 
     // Send all the game objects to the client
-    for (int i = 0; i < room->scene->objects_size; i++)
-    {
-        puts("Sending object");
-        Object *object = room->scene->objects[i];
-        if (!object)
-        {
-            ERROR_EXIT("Object is NULL!\n");
-        }
+    // for (int i = 0; i < room->scene->objects_size; i++)
+    // {
+    //     puts("Sending object");
+    //     Object *object = room->scene->objects[i];
+    //     if (!object)
+    //     {
+    //         ERROR_EXIT("Object is NULL!\n");
+    //     }
 
-        AServer->SendObjectTCP(object, client_stream);
-    }
+    //     AServer->SendObjectTCP(object, client_stream);
+    // }
 
     // Send synchronization complete message to client
 

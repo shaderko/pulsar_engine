@@ -84,6 +84,7 @@ struct AObject
      * Can have different collider and renderer types
      */
     Object *(*Init)();
+    void (*Delete)(Object *object);
 
     Object *(*Create)(bool is_static, bool should_render, float mass, vec3 position);
 
@@ -100,6 +101,7 @@ struct AObject
      * Render object in position of object with the local position of renderer
      */
     void (*Render)(Object *object);
+    void (*BatchRender)(Object **objects, size_t objects_size);
     void (*RenderObjects)();
 
     /**

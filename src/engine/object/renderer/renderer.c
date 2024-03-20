@@ -23,6 +23,7 @@
 static void Delete(Renderer *renderer)
 {
     AModel->Delete(renderer->model);
+
     free(renderer);
 }
 
@@ -73,6 +74,18 @@ static void Render(Renderer *renderer, mat4x4 transform)
     mat4x4_add(world_position, transform, renderer->transform);
 
     AWindowRender->RenderMesh(renderer->model, world_position); // renderer->rotation, renderer->scale TODO:
+}
+
+static void BatchRender(Renderer **renderer, mat4x4 *transforms, size_t size)
+{
+    // Add renderer positions to transform
+    for (size_t i = 0; i < size; i++)
+    {
+        mat4x4_add(transforms[i], transforms[i], renderer[i]->transform);
+    }
+
+    // Batch render the models
+    AWindowRender->BatchRenderMesh(renderer[0]->model, transforms, size);
 }
 
 /**
@@ -151,7 +164,9 @@ static Renderer *Deserialize(SerializedRenderer serialized_renderer)
 
 struct ARenderer ARenderer = {
     .Init = Init,
+    .Delete = Delete,
     .Render = Render,
+    .BatchRender = BatchRender,
     .InitBox = InitBox,
     .InitMesh = InitMesh,
     .Serialize = Serialize,

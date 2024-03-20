@@ -16,6 +16,13 @@
 
 #include "../object.h"
 
+typedef struct ObjectList ObjectList;
+struct ObjectList
+{
+    Object **object;
+    int object_size;
+};
+
 typedef struct Scene Scene;
 struct Scene
 {
@@ -27,8 +34,8 @@ struct Scene
     /**
      * Array of objects in a scene
      */
-    Object **objects;
-    int objects_size;
+    ObjectList **objects_list;
+    int objects_list_size;
 };
 
 struct AScene
@@ -37,6 +44,7 @@ struct AScene
      * Initializes a scene
      */
     Scene *(*Init)(vec3 *);
+    void (*Delete)(Scene *scene);
 
     /**
      * Updates a scene
@@ -47,6 +55,8 @@ struct AScene
      * Adds an object to a scene
      */
     void (*Add)(Scene *scene, Object *object);
+
+    void (*Render)(Scene *scene);
 
     /**
      * Writes scene objects to a file

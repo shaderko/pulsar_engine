@@ -9,6 +9,8 @@
 #include "engine/camera/camera.h"
 #include "editor/editor.h"
 
+#include "../assets/cellular_automaton.h"
+
 #define WINDOW_SIZE_W 1280
 #define WINDOW_SIZE_H 720
 
@@ -24,6 +26,9 @@ int main(int argc, char *argv[])
     // main_window->camera = camera;
 
     // Object *cube = AObject.InitBox(true, true, .1f, (vec3){0, 0, 0}, (vec3){10, 10, 10});
+
+    Scene *scene = StartCellularAutomaton();
+    editor->scene = scene;
 
     bool quit = false;
     while (!quit)

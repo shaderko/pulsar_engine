@@ -46,10 +46,14 @@ struct ARenderer
      */
     Renderer *(*Init)(vec3 position, vec3 rotation, vec3 scale);
 
+    void (*Delete)(Renderer *renderer);
+
     /**
      * Render the renderer
      */
     void (*Render)(Renderer *renderer, mat4x4 transform);
+
+    void (*BatchRender)(Renderer **renderer, mat4x4 *transforms, size_t size);
 
     /**
      * Initialize a renderer with a box model

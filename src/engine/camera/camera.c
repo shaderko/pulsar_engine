@@ -86,7 +86,7 @@ static Camera *UpdateView(Camera *camera)
     mat4x4_look_at(camera->view, camera->eye, camera->center, camera->up);
 }
 
-static void Render(Camera *camera, Window *window, float width, float height)
+static void Render(Camera *camera, Window *window, float width, float height, Scene *scene)
 {
     if (!camera)
         return;
@@ -119,7 +119,8 @@ static void Render(Camera *camera, Window *window, float width, float height)
     AWindowRender->RenderBegin(window);
     glViewport(0, 0, width, height);
 
-    AObject.RenderObjects();
+    AObject.RenderObjects(scene);
+    AWindowRender->RenderLight(window, (vec3){0.0f, 0.0f, 0.0f});
     // AWindowRender->RenderEnd(window);
 
     lastRenderedWidth = width;

@@ -38,6 +38,11 @@ static Collider *InitBox(vec3 position, vec3 size)
 
 static void Delete(Collider *collider)
 {
+    if (!collider)
+        return;
+
+    collider->Delete(collider);
+
     free(collider);
 }
 

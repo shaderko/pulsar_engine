@@ -15,17 +15,10 @@
 #include "renderer/renderer.h"
 #include "map/scene.h"
 
-/**
- * All game object array (all that exist, so that means even in multiple rooms)
- * This is meant for the server, if the server has multiple rooms it will store all the objects in the same array
- * The client will only store the objects in the current room (Those that are local to the client)
- */
 static Object **ObjectsArray = NULL;
 static size_t ObjectsSize = 0;
 
 /**
- * This function creates a new object and adds it to the array, this is the main function for creating objects used in all the other functions
- * This function only allocates the memory doesn't initialize the variables, so don't call the variables on an object created by this function (Use function Create)
  * @return Object* - pointer to object in array
  */
 static Object *Init()
@@ -51,9 +44,24 @@ static Object *Init()
     return object;
 }
 
-static void Destroy(Object *object)
+static void Delete(Object *object)
 {
-    // TODO:
+    ACollider->Delete(object->collider);
+    AObject.ARenderer->Delete(object->renderer);
+
+    for (int i = 0; i < ObjectsSize; i++)
+    {
+        if (ObjectsArray[i] == object)
+        {
+            ObjectsArray[i] = NULL;
+            ObjectsArray[i] = ObjectsArray[ObjectsSize - 1];
+            ObjectsArray = realloc(ObjectsArray, (ObjectsSize - 1) * sizeof(Object *));
+            break;
+        }
+    }
+    ObjectsSize--;
+
+    free(object);
 }
 
 /**
@@ -87,7 +95,7 @@ static Object *InitBox(bool is_static, bool should_render, float mass, vec3 posi
 {
     Object *object = AObject.Create(is_static, should_render, mass, position);
 
-    object->collider = ACollider->InitBox((vec3){0, 0, 0}, size);
+    // object->collider = ACollider->InitBox((vec3){0, 0, 0}, size);
     object->renderer = AObject.ARenderer->InitBox((vec3){0, 0, 0}, (vec3){0, 0, 0}, size);
 
     return object;
@@ -111,7 +119,7 @@ static Object *InitMesh(bool is_static, bool should_render, float mass, vec3 pos
 
     Object *object = AObject.Create(is_static, should_render, mass, position);
 
-    object->collider = ACollider->InitBox((vec3){0, 0, 0}, size);
+    // object->collider = ACollider->InitBox((vec3){0, 0, 0}, size);
     object->renderer = AObject.ARenderer->InitMesh(model, (vec4){1, 1, 1, 1}, (vec3){0, 0, 0}, (vec3){0, 0, 0}, size);
 
     return object;
@@ -142,16 +150,38 @@ static void Render(Object *object)
     AObject.ARenderer->Render(object->renderer, object->transform);
 }
 
+static void BatchRender(Object **objects, size_t objects_size)
+{
+    // Create list of renderers from objects
+    Object **renderers = malloc(objects_size * sizeof(Renderer *));
+    mat4x4 *transforms = malloc(objects_size * sizeof(mat4x4));
+    for (int i = 0; i < objects_size; i++)
+    {
+        renderers[i] = objects[i]->renderer;
+        memcpy(transforms[i], objects[i]->transform, sizeof(mat4x4));
+    }
+
+    AObject.ARenderer->BatchRender(renderers, transforms, objects_size);
+
+    free(renderers);
+    free(transforms);
+}
+
 /**
  * @brief Render all objects
  */
-static void RenderObjects()
+static void RenderObjects(Scene *scene)
 {
-    for (int x = 0; x < ObjectsSize; x++)
+    if (!scene)
+        return;
+
+    for (int x = 0; x < scene->objects_list_size; x++)
     {
-        if (!ObjectsArray[x]->should_render)
-            continue;
-        Render(ObjectsArray[x]);
+        // if (!ObjectsArray[x]->should_render)
+        //     continue;
+        // Render(ObjectsArray[x]);
+
+        BatchRender(scene->objects_list[x]->object, scene->objects_list[x]->object_size);
     }
 }
 
@@ -299,38 +329,38 @@ static SerializedDerived SerializePartial(Object *object)
 static Object *Deserialize(SerializedObject *object, Scene *scene)
 {
     printf("Deserializing game object with id %llu\n", object->id);
-    if (!scene)
-    {
-        for (int x = 0; x < ObjectsSize; x++)
-        {
-            if (ObjectsArray[x]->id == object->id)
-            {
-                // ObjectsArray[x]->position[0] = object->position[0];
-                // ObjectsArray[x]->position[1] = object->position[1];
-                // ObjectsArray[x]->position[2] = object->position[2];
-                ObjectsArray[x]->velocity[0] = object->velocity[0];
-                ObjectsArray[x]->velocity[1] = object->velocity[1];
-                ObjectsArray[x]->velocity[2] = object->velocity[2];
-                return NULL;
-            }
-        }
-    }
-    else
-    {
-        for (int x = 0; x < scene->objects_size; x++)
-        {
-            if (scene->objects[x]->id == object->id)
-            {
-                // scene->objects[x]->position[0] = object->position[0];
-                // scene->objects[x]->position[1] = object->position[1];
-                // scene->objects[x]->position[2] = object->position[2];
-                scene->objects[x]->velocity[0] = object->velocity[0];
-                scene->objects[x]->velocity[1] = object->velocity[1];
-                scene->objects[x]->velocity[2] = object->velocity[2];
-                return NULL;
-            }
-        }
-    }
+    // if (!scene)
+    // {
+    //     for (int x = 0; x < ObjectsSize; x++)
+    //     {
+    //         if (ObjectsArray[x]->id == object->id)
+    //         {
+    //             // ObjectsArray[x]->position[0] = object->position[0];
+    //             // ObjectsArray[x]->position[1] = object->position[1];
+    //             // ObjectsArray[x]->position[2] = object->position[2];
+    //             ObjectsArray[x]->velocity[0] = object->velocity[0];
+    //             ObjectsArray[x]->velocity[1] = object->velocity[1];
+    //             ObjectsArray[x]->velocity[2] = object->velocity[2];
+    //             return NULL;
+    //         }
+    //     }
+    // }
+    // else
+    // {
+    //     for (int x = 0; x < scene->objects_size; x++)
+    //     {
+    //         if (scene->objects[x]->id == object->id)
+    //         {
+    //             // scene->objects[x]->position[0] = object->position[0];
+    //             // scene->objects[x]->position[1] = object->position[1];
+    //             // scene->objects[x]->position[2] = object->position[2];
+    //             scene->objects[x]->velocity[0] = object->velocity[0];
+    //             scene->objects[x]->velocity[1] = object->velocity[1];
+    //             scene->objects[x]->velocity[2] = object->velocity[2];
+    //             return NULL;
+    //         }
+    //     }
+    // }
 
     Object *new_obj = AObject.Create(object->is_static, object->should_render, object->mass, object->position);
     new_obj->id = object->id;
@@ -354,11 +384,13 @@ extern struct ARenderer ARenderer;
 struct AObject AObject =
     {
         .Init = Init,
+        .Delete = Delete,
         .Create = Create,
         .InitBox = InitBox,
         .InitMesh = InitMesh,
         .GetObjectByIndex = GetObjectByIndex,
         .Render = Render,
+        .BatchRender = BatchRender,
         .RenderObjects = RenderObjects,
         .Update = Update,
         .UpdateObjects = UpdateObjects,

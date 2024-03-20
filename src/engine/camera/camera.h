@@ -15,6 +15,7 @@
 #include <linmath.h>
 #include <glad/glad.h>
 #include "../render/render.h"
+#include "../object/map/scene.h"
 
 typedef struct Camera Camera;
 struct Camera
@@ -38,7 +39,7 @@ struct ACamera
     Camera *(*InitOrtho)(float left, float right, float bottom, float top, float near, float far);
     Camera *(*InitPerspective)(float fov, float aspect, float near, float far);
     Camera *(*UpdateView)(Camera *camera);
-    void (*Render)(Camera *camera, Window *window, float width, float height);
+    void (*Render)(Camera *camera, Window *window, float width, float height, Scene *scene);
 };
 
 extern struct ACamera ACamera[1];

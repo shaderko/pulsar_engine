@@ -149,9 +149,12 @@ set(CONFIG src/engine/common/config/config.c)
 set(INPUT src/engine/input/input.c)
 set(WINDOW src/engine/window/window.c)
 
+# Delete later TODO:
+set(ASSETS assets/cellular_automaton.c)
+
 set(EDITOR src/editor/editor.c)
 
-set(FILES deps/src/glad.c src/main.c src/engine/common/global/global.c src/engine/util/util.c ${RENDER} ${IO} ${SCENE} ${OBJECT} ${NETWORKING} ${CAMERA} ${CONFIG} ${INPUT} ${WINDOW} ${EDITOR})
+set(FILES deps/src/glad.c src/main.c src/engine/common/global/global.c src/engine/util/util.c ${RENDER} ${IO} ${SCENE} ${OBJECT} ${NETWORKING} ${CAMERA} ${CONFIG} ${INPUT} ${WINDOW} ${EDITOR} ${ASSETS})
 
 include_directories(deps/include)
 
