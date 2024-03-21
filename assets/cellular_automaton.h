@@ -4,5 +4,7 @@
 #include "../src/engine/object/map/scene.h"
 
 Scene *StartCellularAutomaton();
+void deleteCellularAutomaton();
+
 
 #endif

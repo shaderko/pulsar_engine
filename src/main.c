@@ -90,6 +90,8 @@ int main(int argc, char *argv[])
         AEditor->Render(editor);
     }
 
+    deleteCellularAutomaton();
+
     AWindow->Destroy(editor->window);
 
     puts("Window destroyed, quitting");
