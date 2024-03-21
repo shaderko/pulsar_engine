@@ -12,11 +12,11 @@
 #define GET_BYTE_INDEX(z) ((z / 8))
 #define GET_BIT_INDEX(z) (z % 8)
 
-#define X_SIZE 100
-#define Y_SIZE 100
-#define Z_SIZE 100
+#define X_SIZE 200
+#define Y_SIZE 200
+#define Z_SIZE 200
 
-int **grid;
+uint8_t ***grid;
 
 void deleteCellularAutomaton()
 {
@@ -35,13 +35,17 @@ void deleteCellularAutomaton()
 
 void initializeGrid()
 {
-    grid = malloc(X_SIZE * sizeof(int **));
+
+    // Allocate memory for the X dimension
+    grid = malloc(X_SIZE * sizeof(uint8_t **));
     for (int x = 0; x < X_SIZE; x++)
     {
-        grid[x] = malloc(Y_SIZE * sizeof(int *));
+        // Allocate memory for the Y dimension
+        grid[x] = malloc(Y_SIZE * sizeof(uint8_t *));
         for (int y = 0; y < Y_SIZE; y++)
         {
-            grid[x][y] = calloc(1, GET_BYTE_INDEX(Z_SIZE) + 1);
+            // Allocate memory for the Z dimension, compacted into bytes
+            grid[x][y] = calloc(GET_BYTE_INDEX(Z_SIZE) + 1, sizeof(uint8_t));
         }
     }
 
@@ -53,17 +57,13 @@ void initializeGrid()
         {
             for (int z = 0; z < Z_SIZE; z++)
             {
-                if (x == 0 && y == 0 && z == 0)
+                if ((double)rand() / RAND_MAX < 0.1f)
                 {
                     SET_BIT(grid[x][y][GET_BYTE_INDEX(z)], GET_BIT_INDEX(z));
                 }
-                if ((double)rand() / RAND_MAX < 0.1f)
-                {
-                    // SET_BIT(grid[x][y][GET_BYTE_INDEX(z)], GET_BIT_INDEX(z));
-                }
                 else
                 {
-                    // CLEAR_BIT(grid[x][y][GET_BYTE_INDEX(z)], GET_BIT_INDEX(z));
+                    CLEAR_BIT(grid[x][y][GET_BYTE_INDEX(z)], GET_BIT_INDEX(z));
                 }
             }
         }
@@ -168,7 +168,7 @@ Scene *StartCellularAutomaton()
     // Example: Update the grid 10 times
     for (int i = 0; i < 10; i++)
     {
-        // updateGrid();
+        updateGrid();
         // Add code here to display or analyze the grid
     }
 
