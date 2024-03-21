@@ -50,7 +50,7 @@ static Editor *Init()
     igStyleColorsDark(NULL);
 
     ImGui_ImplSDL2_InitForOpenGL(editor->window->sdl_window, editor->window->context);
-    const char *glsl_version = "#version 130";
+    const char *glsl_version = "#version 410";
     ImGui_ImplOpenGL3_Init(glsl_version);
 
     return editor;
@@ -78,14 +78,14 @@ static void UpdateContext(Editor *editor, SDL_Event *event)
         }
         break;
     case SDL_MOUSEBUTTONDOWN:
-        if (event->button.button == SDL_BUTTON_MIDDLE)
+        if (event->button.button == SDL_BUTTON_LEFT)
         {
             puts("Middle mouse button pressed");
             editor->btn_pressed = true;
         }
         break;
     case SDL_MOUSEBUTTONUP:
-        if (event->button.button == SDL_BUTTON_MIDDLE)
+        if (event->button.button == SDL_BUTTON_LEFT)
         {
             puts("Middle mouse button released");
             editor->btn_pressed = false;
@@ -315,7 +315,12 @@ static void Render(Editor *editor)
         }
         if (editor->scene)
         {
-            // igText("Objects: %d", editor->scene->objects_size);
+            int objects_count = 0;
+            for(int i = 0; i < editor->scene->objects_list_size; i++) {
+                objects_count += editor->scene->objects_list[i]->object_size;
+            }
+
+            igText("Objects: %d", objects_count);
             // int indicies = 0;
             // for (int i = 0; i < editor->scene->objects_size; i++)
             // {
@@ -346,17 +351,17 @@ static void Render(Editor *editor)
             editor->window->camera = ACamera->InitPerspective(0.78539816339f, (float)1920 / (float)1080, 0.0001f, 100000.0f);
         }
 
-        igSliderFloat("UP_X", &editor->window->camera->up[0], 0.0f, 100.0f, "%.1f", NULL);
-        igSliderFloat("UP_Y", &editor->window->camera->up[1], 0.0f, 100.0f, "%.1f", NULL);
-        igSliderFloat("UP_Z", &editor->window->camera->up[2], 0.0f, 100.0f, "%.1f", NULL);
+        igSliderFloat("UP_X", &editor->window->camera->up[0], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("UP_Y", &editor->window->camera->up[1], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("UP_Z", &editor->window->camera->up[2], 0.0f, 100.0f, "%.1f", 0);
 
-        igSliderFloat("CENTER_X", &editor->window->camera->center[0], 0.0f, 100.0f, "%.1f", NULL);
-        igSliderFloat("CENTER_Y", &editor->window->camera->center[1], 0.0f, 100.0f, "%.1f", NULL);
-        igSliderFloat("CENTER_Z", &editor->window->camera->center[2], 0.0f, 100.0f, "%.1f", NULL);
+        igSliderFloat("CENTER_X", &editor->window->camera->center[0], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("CENTER_Y", &editor->window->camera->center[1], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("CENTER_Z", &editor->window->camera->center[2], 0.0f, 100.0f, "%.1f", 0);
 
-        igSliderFloat("POSITION_X", &editor->window->camera->position[0], 0.0f, 100.0f, "%.1f", NULL);
-        igSliderFloat("POSITION_Y", &editor->window->camera->position[1], 0.0f, 100.0f, "%.1f", NULL);
-        igSliderFloat("POSITION_Z", &editor->window->camera->position[2], 0.0f, 100.0f, "%.1f", NULL);
+        igSliderFloat("POSITION_X", &editor->window->camera->position[0], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("POSITION_Y", &editor->window->camera->position[1], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("POSITION_Z", &editor->window->camera->position[2], 0.0f, 100.0f, "%.1f", 0);
 
         igEnd();
 

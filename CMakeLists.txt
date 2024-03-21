@@ -97,7 +97,12 @@ include_directories(externals/cimgui/imgui/examples/libs/gl3w)
 if(WIN32)
     list(APPEND IMGUI_LIBRARIES opengl32)
 else(WIN32) # Unix
-    list(APPEND IMGUI_LIBRARIES GL)
+    if(APPLE)
+        find_library(OPENGL_LIBRARY OpenGL)
+        list(APPEND IMGUI_LIBRARIES ${OPENGL_LIBRARY})
+    else()
+        list(APPEND IMGUI_LIBRARIES GL)
+    endif()
 endif(WIN32)
 
 set(SDL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/externals/SDL2-devel-2.28.4-VC/SDL2-2.28.4")
@@ -161,7 +166,12 @@ include_directories(deps/include)
 include_directories(externals/cimgui/generator/output/)
 add_executable(pulsar_engine ${FILES})
 target_compile_definitions(pulsar_engine PUBLIC -DCIMGUI_USE_OPENGL3 -DCIMGUI_USE_SDL2)
-target_link_libraries(pulsar_engine ${IMGUI_SDL_LIBRARY} cimgui_sdl uv Ws2_32 Iphlpapi OpenGL32)
+if(WIN32)
+    target_link_libraries(pulsar_engine ${IMGUI_SDL_LIBRARY} cimgui_sdl uv Ws2_32 Iphlpapi OpenGL32)
+else()
+    target_link_libraries(pulsar_engine ${IMGUI_SDL_LIBRARY} cimgui_sdl uv ${OPENGL_LIBRARY})
+endif()
+
 
 if(MINGW)
     target_link_options(pulsar_engine PRIVATE "-mconsole")
@@ -175,10 +185,12 @@ add_custom_command(TARGET pulsar_engine POST_BUILD
     "${SDL2_DLL_PATH}"
     $<TARGET_FILE_DIR:pulsar_engine>)
 
+if (WIN32)
 add_custom_command(TARGET pulsar_engine POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${CMAKE_BINARY_DIR}/libuv-build/Debug/uv.dll"
     $<TARGET_FILE_DIR:pulsar_engine>)
+endif()
 
 add_custom_command(TARGET pulsar_engine POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory

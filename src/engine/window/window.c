@@ -23,15 +23,15 @@ static Window *Init(int width, int height, char *title)
 
 // Decide GL+GLSL versions
 #if __APPLE__
-    // GL 3.2 Core + GLSL 150
-    const char *glsl_version = "#version 150";
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG); // Always required on Mac
+    // GL 4.1 Core + GLSL 410
+    puts("Using OpenGL 4.1 Core and GLSL 4.1");
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG); // Always required on Mac
 #else
+    puts("Using OpenGL 3.0 Core and GLSL 130");
     // GL 3.0 + GLSL 130
-    const char *glsl_version = "#version 130";
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
@@ -55,12 +55,12 @@ static Window *Init(int width, int height, char *title)
         ERROR_EXIT("window creation failed: %s\n", SDL_GetError());
     }
 
-    window->renderer = SDL_CreateRenderer(window->sdl_window, -1, SDL_RENDERER_ACCELERATED);
+    // window->renderer = SDL_CreateRenderer(window->sdl_window, -1, SDL_RENDERER_ACCELERATED);
 
-    if (!window->renderer)
-    {
-        ERROR_EXIT("renderer creation failed: %s\n", SDL_GetError());
-    }
+    // if (!window->renderer)
+    // {
+    //     ERROR_EXIT("renderer creation failed: %s\n", SDL_GetError());
+    // }
 
     window->context = SDL_GL_CreateContext(window->sdl_window);
     if (!window->context)

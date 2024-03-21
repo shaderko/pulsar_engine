@@ -19,8 +19,8 @@
 
 #include "../../util/util.h"
 
-MAX_CHUNK_SIZE = (1024 * 1024);
-MAX_BUFFER_SIZE = 65536;
+int MAX_CHUNK_SIZE = (1024 * 1024);
+int MAX_BUFFER_SIZE = 65536;
 
 static Model *Init()
 {
@@ -168,13 +168,7 @@ static void process_line(char *line, model_load_helper_args *args)
         long val;
         for (int i = 0; i < 3; i++)
         {
-            errno = 0;
             val = strtol(ptr, &ptr, 10); // Parse integer
-            if (errno != 0)
-            {
-                // Handle potential error
-                break;
-            }
             args->indicies[args->indicies_count++] = (unsigned int)val - 1; // Adjust indices to be 0-based
             while (*ptr && *ptr != ' ' && *ptr != '\n')
                 ++ptr;
@@ -259,7 +253,7 @@ static Model *Load(const char *path)
         memcpy(args->chunk, chunk, bytes_read);
         args->chunk_size = bytes_read;
 
-        SDL_Thread *threadId = SDL_CreateThread(model_load_helper, "model_load_helper", (void *)args);
+        SDL_Thread *threadId = SDL_CreateThread((void*)model_load_helper, "model_load_helper", (void *)args);
 
         threadIds = realloc(threadIds, sizeof(SDL_Thread *) * (num_of_threads + 1));
         args_list = realloc(args_list, sizeof(model_load_helper_args *) * (num_of_threads + 1));

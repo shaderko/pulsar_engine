@@ -38,7 +38,7 @@ struct ACamera
 {
     Camera *(*InitOrtho)(float left, float right, float bottom, float top, float near, float far);
     Camera *(*InitPerspective)(float fov, float aspect, float near, float far);
-    Camera *(*UpdateView)(Camera *camera);
+    void (*UpdateView)(Camera *camera);
     void (*Render)(Camera *camera, Window *window, float width, float height, Scene *scene);
 };
 

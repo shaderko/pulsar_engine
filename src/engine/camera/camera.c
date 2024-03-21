@@ -76,7 +76,7 @@ static Camera *InitPerspective(float fov, float aspect, float near, float far)
     return camera;
 }
 
-static Camera *UpdateView(Camera *camera)
+static void UpdateView(Camera *camera)
 {
     if (!camera)
         return;

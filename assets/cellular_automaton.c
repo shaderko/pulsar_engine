@@ -3,9 +3,9 @@
 
 #include <stdint.h>
 
-#define X_SIZE 50
-#define Y_SIZE 50
-#define Z_SIZE 50
+#define X_SIZE 100
+#define Y_SIZE 100
+#define Z_SIZE 100
 
 static int grid[X_SIZE][Y_SIZE][Z_SIZE] = {0};
 
@@ -60,7 +60,7 @@ void updateCellState(int x, int y, int z)
         grid[x][y][z] = 1;
     }
     // Survival: An alive cell remains alive if it has 4 to 6 active neighbors
-    else if (grid[x][y][z] == 1 && (activeNeighbors >= 4 && activeNeighbors <= 6))
+    else if (grid[x][y][z] == 1 && activeNeighbors >= 14)
     {
         grid[x][y][z] = 1;
     }
@@ -106,7 +106,7 @@ Scene *StartCellularAutomaton()
 
     initializeGrid();
     // Example: Update the grid 10 times
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 10; i++)
     {
         updateGrid();
         // Add code here to display or analyze the grid
