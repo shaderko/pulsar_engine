@@ -17,10 +17,13 @@
 #include <linmath.h>
 
 #include "../serialized/serialized.h"
+#include "../../util/util.h"
 
 typedef struct Model Model;
 struct Model
 {
+    ull id;
+
     bool is_valid;
 
     unsigned int verticies_count;

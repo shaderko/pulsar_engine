@@ -12,9 +12,9 @@
 #define GET_BYTE_INDEX(z) ((z / 8))
 #define GET_BIT_INDEX(z) (z % 8)
 
-#define X_SIZE 200
-#define Y_SIZE 200
-#define Z_SIZE 200
+#define X_SIZE 100
+#define Y_SIZE 100
+#define Z_SIZE 100
 
 uint8_t ***grid;
 

@@ -39,9 +39,7 @@ static Renderer *Init(vec3 position, vec3 rotation, vec3 scale)
 {
     Renderer *renderer = malloc(sizeof(Renderer));
     if (!renderer)
-    {
         ERROR_EXIT("error allocating memory for collider.");
-    }
 
     mat4x4_identity(renderer->transform);
     mat4x4_translate(renderer->transform, position[0], position[1], position[2]);
@@ -69,23 +67,17 @@ static void Render(Renderer *renderer, mat4x4 transform)
         return;
     }
 
-    mat4x4 world_position = {0};
+    // mat4x4 world_position = {0};
     // Adjust the position to be relative to world space by adding the position of the renderer to the position of the object
-    mat4x4_add(world_position, transform, renderer->transform);
+    // mat4x4_add(world_position, transform, renderer->transform);
 
-    AWindowRender->RenderMesh(renderer->model, world_position); // renderer->rotation, renderer->scale TODO:
+    AWindowRender->RenderMesh(renderer->model, transform); // renderer->rotation, renderer->scale TODO:
 }
 
-static void BatchRender(Renderer **renderer, mat4x4 *transforms, size_t size)
+static void BatchRender(Model *model, uint32_t vbo, size_t size)
 {
-    // Add renderer positions to transform
-    for (size_t i = 0; i < size; i++)
-    {
-        mat4x4_add(transforms[i], transforms[i], renderer[i]->transform);
-    }
-
     // Batch render the models
-    AWindowRender->BatchRenderMesh(renderer[0]->model, transforms, size);
+    AWindowRender->BatchRenderMesh(model, vbo, size);
 }
 
 /**
@@ -115,7 +107,7 @@ static Renderer *InitBox(vec3 position, vec3 rotation, vec3 scale)
  * @param scale - vec3 of renderer scale
  * @return Renderer*
  */
-static Renderer *InitMesh(Model *model, vec4 color, vec3 position, vec3 rotation, vec3 scale)
+static Renderer *InitMesh(Model *model, vec3 position, vec3 rotation, vec3 scale)
 {
     Renderer *renderer = Init(position, rotation, scale);
 

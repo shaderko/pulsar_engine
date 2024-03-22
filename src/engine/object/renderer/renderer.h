@@ -18,6 +18,7 @@
 
 #include "../serialized/serialized.h"
 #include "../model/model.h"
+#include "../../util/util.h"
 
 typedef struct SerializedRenderer SerializedRenderer;
 struct SerializedRenderer
@@ -53,7 +54,7 @@ struct ARenderer
      */
     void (*Render)(Renderer *renderer, mat4x4 transform);
 
-    void (*BatchRender)(Renderer **renderer, mat4x4 *transforms, size_t size);
+    void (*BatchRender)(Renderer **renderer, uint32_t vbo, size_t size);
 
     /**
      * Initialize a renderer with a box model
@@ -62,7 +63,7 @@ struct ARenderer
     /**
      * Initialize a renderer with a mesh model
      */
-    Renderer *(*InitMesh)(Model *model, vec4 color, vec3 position, vec3 rotation, vec3 scale);
+    Renderer *(*InitMesh)(Model *model, vec3 position, vec3 rotation, vec3 scale);
 
     /**
      * Serialize a renderer, for saving to file or sending over network

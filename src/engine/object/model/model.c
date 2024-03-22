@@ -17,8 +17,6 @@
 #include <glad/glad.h>
 #include <SDL.h>
 
-#include "../../util/util.h"
-
 int MAX_CHUNK_SIZE = (1024 * 1024);
 int MAX_BUFFER_SIZE = 65536;
 
@@ -48,6 +46,11 @@ static void Delete(Model *model)
 
 static Model *InitBox()
 {
+    // static box_model;
+
+    // if (box_model)
+    //     return box_model;
+
     Model *model = AModel->Init();
 
     model->verticies_count = 24;
@@ -92,6 +95,8 @@ static Model *InitBox()
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+
+    // box_model = model;
 
     return model;
 }
@@ -168,7 +173,7 @@ static void process_line(char *line, model_load_helper_args *args)
         long val;
         for (int i = 0; i < 3; i++)
         {
-            val = strtol(ptr, &ptr, 10); // Parse integer
+            val = strtol(ptr, &ptr, 10);                                    // Parse integer
             args->indicies[args->indicies_count++] = (unsigned int)val - 1; // Adjust indices to be 0-based
             while (*ptr && *ptr != ' ' && *ptr != '\n')
                 ++ptr;
@@ -253,7 +258,7 @@ static Model *Load(const char *path)
         memcpy(args->chunk, chunk, bytes_read);
         args->chunk_size = bytes_read;
 
-        SDL_Thread *threadId = SDL_CreateThread((void*)model_load_helper, "model_load_helper", (void *)args);
+        SDL_Thread *threadId = SDL_CreateThread((void *)model_load_helper, "model_load_helper", (void *)args);
 
         threadIds = realloc(threadIds, sizeof(SDL_Thread *) * (num_of_threads + 1));
         args_list = realloc(args_list, sizeof(model_load_helper_args *) * (num_of_threads + 1));

@@ -10,18 +10,101 @@
 
 #include "object.h"
 
+#include <glad/glad.h>
 #include "../util/util.h"
 #include "collider/collider.h"
 #include "renderer/renderer.h"
 #include "map/scene.h"
 
-static Object **ObjectsArray = NULL;
-static size_t ObjectsSize = 0;
+static ObjectGroup **object_group_list = NULL;
+static size_t object_group_list_size = 0;
+
+static ObjectGroup *init_group()
+{
+    ObjectGroup *object_group = malloc(sizeof(ObjectGroup));
+    if (!object_group)
+        ERROR_EXIT("Object group couldn't be allocated!\n");
+
+    memset(object_group, 0, sizeof(ObjectGroup));
+
+    object_group_list = realloc(object_group_list, sizeof(ObjectGroup *) * (object_group_list_size + 1));
+    object_group_list[object_group_list_size] = object_group;
+    object_group_list_size++;
+
+    return object_group;
+}
+
+static void add_to_group(Object *object)
+{
+    for (int i = 0; i < object_group_list_size; i++)
+    {
+        if (object_group_list[i]->size <= 0)
+        {
+            // object_group_delete(object_group_list[i]);
+        }
+
+        if (object_group_list[i]->objects[0]->renderer->model->id != object->renderer->model->id)
+            continue;
+
+        puts("Found group adding");
+
+        object_group_list[i]->objects = realloc(object_group_list[i]->objects, sizeof(Object *) * (object_group_list[i]->size + 1));
+        object_group_list[i]->objects[object_group_list[i]->size] = object;
+
+        // Step 1: Generate the temporary buffer
+        int32_t tempBuffer;
+        glGenBuffers(1, &tempBuffer);
+        glBindBuffer(GL_COPY_WRITE_BUFFER, tempBuffer);
+
+        // Step 2: Allocate enough space for both old and new data in the temporary buffer
+        glBufferData(GL_COPY_WRITE_BUFFER, object_group_list[i]->size + 1, NULL, GL_STATIC_DRAW);
+
+        // Step 3: Bind the original buffer to GL_COPY_READ_BUFFER
+        glBindBuffer(GL_COPY_READ_BUFFER, object_group_list[i]->vbo);
+
+        // Step 4: Copy the original data to the temporary buffer
+        glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER, 0, 0, object_group_list[i]->size);
+
+        // Step 5: Reallocate the original buffer with a new size
+        glBindBuffer(GL_ARRAY_BUFFER, object_group_list[i]->vbo);
+        glBufferData(GL_ARRAY_BUFFER, object_group_list[i]->size + 1, NULL, GL_STATIC_DRAW);
+
+        // Step 6: Copy the data from the temporary buffer back to the original buffer
+        glBindBuffer(GL_COPY_READ_BUFFER, tempBuffer);
+        glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_ARRAY_BUFFER, 0, 0, object_group_list[i]->size);
+
+        // Step 7: Now, original buffer has been resized, and you can add new data to it
+        glBufferSubData(GL_ARRAY_BUFFER, object_group_list[i]->size, object_group_list[i]->size + 1, &object->transform[0]);
+
+        // Step 8: Clean up the temporary buffer
+        glDeleteBuffers(1, &tempBuffer);
+
+        object_group_list[i]->size++;
+
+        return;
+    }
+
+    puts("Initializing group");
+
+    ObjectGroup *group = init_group();
+
+    group->objects = malloc(sizeof(Object *) * 1);
+    group->objects[0] = object;
+
+    glGenBuffers(1, &group->vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(mat4x4), &object->transform[0], GL_STATIC_DRAW);
+
+    group->size = 1;
+}
 
 /**
- * @return Object* - pointer to object in array
+ * @brief Initialize an object with position
+ *
+ * @param position - in world space
+ *
+ * @return Object* - Pointer to the newly created object
  */
-static Object *Init()
+static Object *Init(vec3 position, vec3 rotation, vec3 scale)
 {
     Object *object = malloc(sizeof(Object));
     if (!object)
@@ -30,118 +113,85 @@ static Object *Init()
     memset(object, 0, sizeof(Object));
 
     object->id = generate_random_id();
-    printf("Initialized object with id %llu\n", object->id);
 
-    ObjectsArray = realloc(ObjectsArray, (ObjectsSize + 1) * sizeof(Object *));
-    if (!ObjectsArray)
-    {
-        ERROR_EXIT("ObjectsArray memory couldn't be allocated!\n");
-    }
+    mat4x4_identity(object->transform);
 
-    ObjectsArray[ObjectsSize] = object;
-    ObjectsSize++;
+    mat4x4_translate_in_place(object->transform, position[0], position[1], position[2]);
+
+    // Then apply rotations around axes
+    mat4x4_rotate_X(object->transform, object->transform, rotation[0]); // Rotate around X axis
+    mat4x4_rotate_Y(object->transform, object->transform, rotation[1]); // Rotate around Y axis
+    mat4x4_rotate_Z(object->transform, object->transform, rotation[2]); // Rotate around Z axis
+
+    // Finally, apply scale
+    mat4x4_scale_aniso(object->transform, object->transform, scale[0], scale[1], scale[2]);
 
     return object;
 }
 
+/**
+ * @brief Delete an object
+ *
+ * @param object - Pointer to the object to be freed
+ *
+ * @return void
+ */
 static void Delete(Object *object)
 {
-    ACollider->Delete(object->collider);
+    // ACollider->Delete(object->collider);
     AObject.ARenderer->Delete(object->renderer);
-
-    for (int i = 0; i < ObjectsSize; i++)
-    {
-        if (ObjectsArray[i] == object)
-        {
-            ObjectsArray[i] = NULL;
-            ObjectsArray[i] = ObjectsArray[ObjectsSize - 1];
-            ObjectsArray = realloc(ObjectsArray, (ObjectsSize - 1) * sizeof(Object *));
-            break;
-        }
-    }
-    ObjectsSize--;
 
     free(object);
 }
 
 /**
- * Initialize an object with no collider and renderer, but with all the other variables
- *
- * @param is_static dynamic physics or static
- * @return Object*
- */
-static Object *Create(bool is_static, bool should_render, float mass, vec3 position)
-{
-    Object *object = Init();
-
-    /**
-     * Initialize all the main variables
-     */
-    mat4x4_translate(object->transform, position[0], position[1], position[2]);
-    object->mass = mass;
-    object->is_static = is_static;
-    object->should_render = should_render;
-
-    return object;
-}
-
-/**
  * @brief Create a box object
  *
- * @param is_static dynamic or static physics
+ * @param position - in world space
+ * @param rotation - in world space
+ * @param scale - in world space
+ *
  * @return Object*
  */
-static Object *InitBox(bool is_static, bool should_render, float mass, vec3 position, vec3 size)
+static Object *InitBox(vec3 position, vec3 rotation, vec3 scale)
 {
-    Object *object = AObject.Create(is_static, should_render, mass, position);
+    Object *object = AObject.Init(position, rotation, scale);
 
     // object->collider = ACollider->InitBox((vec3){0, 0, 0}, size);
-    object->renderer = AObject.ARenderer->InitBox((vec3){0, 0, 0}, (vec3){0, 0, 0}, size);
+    object->renderer = AObject.ARenderer->InitBox((vec3){0, 0, 0}, (vec3){0, 0, 0}, (vec3){1, 1, 1});
+
+    add_to_group(object);
 
     return object;
 }
 
 /**
  * @brief Create a mesh object
- * If model is NULL it will error exit the program
  *
- * @param is_static
- * @param mass
- * @param position
- * @param size
- * @param model
+ * @param position - in world space
+ * @param rotation - in world space
+ * @param scale - in world space
+ * @param model - the model to be used for rendering
+ *
  * @return Object*
  */
-static Object *InitMesh(bool is_static, bool should_render, float mass, vec3 position, vec3 size, Model *model)
+static Object *InitMesh(vec3 position, vec3 rotation, vec3 scale, Model *model)
 {
     if (!model)
-        ERROR_RETURN(NULL, "Object was not initialized because the model was NULL!\n");
+        ERROR_RETURN(NULL, "Object was not initialized because the model was not provided!\n");
 
-    Object *object = AObject.Create(is_static, should_render, mass, position);
+    Object *object = AObject.Init(position, rotation, scale);
 
     // object->collider = ACollider->InitBox((vec3){0, 0, 0}, size);
-    object->renderer = AObject.ARenderer->InitMesh(model, (vec4){1, 1, 1, 1}, (vec3){0, 0, 0}, (vec3){0, 0, 0}, size);
+    object->renderer = AObject.ARenderer->InitMesh(model, (vec3){0, 0, 0}, (vec3){0, 0, 0}, (vec3){1, 1, 1});
+
+    add_to_group(object);
 
     return object;
 }
 
 /**
- * @brief Get the object by index of object in array
- *
- * @param index index of the object in the array
- * @return Object* or NULL if the object doesn't exist
- */
-static Object *GetObjectByIndex(int index)
-{
-    if (index >= ObjectsSize || index < 0)
-    {
-        return NULL;
-    }
-    return ObjectsArray[index];
-}
-
-/**
- * @brief Render the object
+ * @brief Render a single object
  *
  * @param object object to be rendered
  */
@@ -150,97 +200,33 @@ static void Render(Object *object)
     AObject.ARenderer->Render(object->renderer, object->transform);
 }
 
-static void BatchRender(Object **objects, size_t objects_size)
-{
-    // Create list of renderers from objects
-    Object **renderers = malloc(objects_size * sizeof(Renderer *));
-    mat4x4 *transforms = malloc(objects_size * sizeof(mat4x4));
-    for (int i = 0; i < objects_size; i++)
-    {
-        renderers[i] = objects[i]->renderer;
-        memcpy(transforms[i], objects[i]->transform, sizeof(mat4x4));
-    }
-
-    AObject.ARenderer->BatchRender(renderers, transforms, objects_size);
-
-    free(renderers);
-    free(transforms);
-}
-
 /**
- * @brief Render all objects
- */
-static void RenderObjects(Scene *scene)
-{
-    if (!scene)
-        return;
-
-    for (int x = 0; x < scene->objects_list_size; x++)
-    {
-        // if (!ObjectsArray[x]->should_render)
-        //     continue;
-        // Render(ObjectsArray[x]);
-
-        BatchRender(scene->objects_list[x]->object, scene->objects_list[x]->object_size);
-    }
-}
-
-/**
- * @brief Apply gravity to object
- * Doesn't check for collisions
+ * @brief Render multiple objects efficiently
  *
- * @param object to apply gravity to
+ * @param objects
+ * @param objects_size
  */
-static void ApplyGravity(Object *object)
+static void BatchRender()
 {
-    object->velocity[1] += -.01;
-}
-
-/**
- * @brief Update the game object and it's physics and collisions
- *
- * @param object
- */
-static void Update(Object *object)
-{
-    if (object->is_static)
+    for (int i = 0; i < object_group_list_size; i++)
     {
-        return;
-    }
+        if (object_group_list[i]->size <= 0)
+            continue;
 
-    for (int i = 0; i < ObjectsSize; i++)
-    {
-        if (object->collider->Collide(object, ObjectsArray[i]))
-        {
-            return;
-        }
-    }
+        // printf("rendering object %lld\n", object_group_list[i]->objects[0]->id);
 
-    ApplyGravity(object);
-
-    // object->position[0] += object->velocity[0];
-    // object->position[1] += object->velocity[1];
-    // object->position[2] += object->velocity[2];
-}
-
-/**
- * @brief Update all objects
- */
-static void UpdateObjects()
-{
-    for (int x = 0; x < ObjectsSize; x++)
-    {
-        Update(ObjectsArray[x]);
+        // Render(object_group_list[i]->objects[0]);
+        AObject.ARenderer->BatchRender(object_group_list[i]->objects[0], object_group_list[i]->vbo, object_group_list[i]->size);
     }
 }
 
 /**
- * @brief Update position not depending on velocity of the object
+ * @brief Update objects position
  *
  * @param object
  * @param position
  */
-static void UpdatePosition(Object *object, vec3 position)
+static void Translate(Object *object, vec3 position)
 {
     mat4x4_translate(object->transform, position[0], position[1], position[2]);
 }
@@ -253,38 +239,40 @@ static void UpdatePosition(Object *object, vec3 position)
  */
 static SerializedDerived Serialize(Object *object)
 {
-    SerializedCollider collider = ACollider->Serialize(object->collider);
-    SerializedRenderer renderer = AObject.ARenderer->Serialize(object->renderer);
+    // SerializedCollider collider = ACollider->Serialize(object->collider);
+    // SerializedRenderer renderer = AObject.ARenderer->Serialize(object->renderer);
 
-    SerializedObject serialize_obj = {
-        object->id,
-        {0, 0, 0},
-        // {object->position[0], object->position[1], object->position[2]},
-        {object->velocity[0], object->velocity[1], object->velocity[2]},
-        object->mass,
-        object->is_static,
-        object->should_render,
-        collider,
-        renderer};
+    // SerializedObject serialize_obj = {
+    //     object->id,
+    //     {0, 0, 0},
+    //     // {object->position[0], object->position[1], object->position[2]},
+    //     {object->velocity[0], object->velocity[1], object->velocity[2]},
+    //     object->mass,
+    //     object->is_static,
+    //     object->should_render,
+    //     collider,
+    //     renderer};
+
+    // SerializedDerived result;
+    // result.len = sizeof(SerializedObject) + collider.derived.len + renderer.derived.len;
+    // result.data = malloc(result.len);
+    // if (!result.data)
+    // {
+    //     free(collider.derived.data);
+    //     free(renderer.derived.data);
+    //     ERROR_EXIT("SerializedDerived memory couldn't be allocated!\n");
+    // }
+
+    // memcpy((char *)result.data, &serialize_obj, sizeof(SerializedObject));
+    // memcpy((char *)result.data + sizeof(SerializedObject), (char *)collider.derived.data, collider.derived.len);
+
+    // // Renderer
+    // memcpy((char *)result.data + sizeof(SerializedObject) + collider.derived.len, (char *)renderer.derived.data, renderer.derived.len);
+
+    // free(collider.derived.data);
+    // free(renderer.derived.data);
 
     SerializedDerived result;
-    result.len = sizeof(SerializedObject) + collider.derived.len + renderer.derived.len;
-    result.data = malloc(result.len);
-    if (!result.data)
-    {
-        free(collider.derived.data);
-        free(renderer.derived.data);
-        ERROR_EXIT("SerializedDerived memory couldn't be allocated!\n");
-    }
-
-    memcpy((char *)result.data, &serialize_obj, sizeof(SerializedObject));
-    memcpy((char *)result.data + sizeof(SerializedObject), (char *)collider.derived.data, collider.derived.len);
-
-    // Renderer
-    memcpy((char *)result.data + sizeof(SerializedObject) + collider.derived.len, (char *)renderer.derived.data, renderer.derived.len);
-
-    free(collider.derived.data);
-    free(renderer.derived.data);
 
     return result;
 }
@@ -296,24 +284,26 @@ static SerializedDerived Serialize(Object *object)
  */
 static SerializedDerived SerializePartial(Object *object)
 {
-    SerializedObject serialize_obj = {
-        object->id,
-        {0, 0, 0},
-        // {object->position[0], object->position[1], object->position[2]},
-        {object->velocity[0], object->velocity[1], object->velocity[2]},
-        object->mass,
-        object->is_static,
-        object->should_render,
-        {{0, 0, 0}, 0, {0, NULL}},
-        {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, NULL}}};
+    // SerializedObject serialize_obj = {
+    //     object->id,
+    //     {0, 0, 0},
+    //     // {object->position[0], object->position[1], object->position[2]},
+    //     {object->velocity[0], object->velocity[1], object->velocity[2]},
+    //     object->mass,
+    //     object->is_static,
+    //     object->should_render,
+    //     {{0, 0, 0}, 0, {0, NULL}},
+    //     {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, NULL}}};
+
+    // SerializedDerived result;
+    // result.len = sizeof(SerializedObject);
+    // result.data = malloc(result.len);
+    // if (!result.data)
+    //     ERROR_EXIT("SerializedDerived memory couldn't be allocated!\n");
+
+    // memcpy((char *)result.data, &serialize_obj, sizeof(SerializedObject));
 
     SerializedDerived result;
-    result.len = sizeof(SerializedObject);
-    result.data = malloc(result.len);
-    if (!result.data)
-        ERROR_EXIT("SerializedDerived memory couldn't be allocated!\n");
-
-    memcpy((char *)result.data, &serialize_obj, sizeof(SerializedObject));
 
     return result;
 }
@@ -362,20 +352,22 @@ static Object *Deserialize(SerializedObject *object, Scene *scene)
     //     }
     // }
 
-    Object *new_obj = AObject.Create(object->is_static, object->should_render, object->mass, object->position);
-    new_obj->id = object->id;
-    switch (object->collider.type)
-    {
-    case BOX_COLLIDER:
-        new_obj->collider = ACollider->InitBox((float *)object->collider.position, (float *)&(vec3){100, 100, 100});
-        break;
-    default:
-        break;
-    }
+    // Object *new_obj = AObject.Create(object->is_static, object->should_render, object->mass, object->position);
+    // new_obj->id = object->id;
+    // switch (object->collider.type)
+    // {
+    // case BOX_COLLIDER:
+    //     new_obj->collider = ACollider->InitBox((float *)object->collider.position, (float *)&(vec3){100, 100, 100});
+    //     break;
+    // default:
+    //     break;
+    // }
 
-    printf("object->renderer.derived.len: %d\n", object->renderer.derived.len);
+    // printf("object->renderer.derived.len: %d\n", object->renderer.derived.len);
 
-    new_obj->renderer = AObject.ARenderer->Deserialize(object->renderer);
+    // new_obj->renderer = AObject.ARenderer->Deserialize(object->renderer);
+
+    Object *new_obj = AObject.Init((vec3){0, 0, 0}, (vec3){0, 0, 0}, (vec3){0, 0, 0});
 
     return new_obj;
 }
@@ -385,16 +377,11 @@ struct AObject AObject =
     {
         .Init = Init,
         .Delete = Delete,
-        .Create = Create,
         .InitBox = InitBox,
         .InitMesh = InitMesh,
-        .GetObjectByIndex = GetObjectByIndex,
         .Render = Render,
         .BatchRender = BatchRender,
-        .RenderObjects = RenderObjects,
-        .Update = Update,
-        .UpdateObjects = UpdateObjects,
-        .UpdatePosition = UpdatePosition,
+        .Translate = Translate,
         .Serialize = Serialize,
         .SerializePartial = SerializePartial,
         .Deserialize = Deserialize,

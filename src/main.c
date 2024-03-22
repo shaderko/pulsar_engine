@@ -27,8 +27,8 @@ int main(int argc, char *argv[])
 
     // Object *cube = AObject.InitBox(true, true, .1f, (vec3){0, 0, 0}, (vec3){10, 10, 10});
 
-    Scene *scene = StartCellularAutomaton();
-    editor->scene = scene;
+    // Scene *scene = StartCellularAutomaton();
+    // editor->scene = scene;
 
     bool quit = false;
     while (!quit)
@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
         AEditor->Render(editor);
     }
 
-    deleteCellularAutomaton();
+    // deleteCellularAutomaton();
 
     AWindow->Destroy(editor->window);
 

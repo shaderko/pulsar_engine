@@ -119,7 +119,8 @@ static void Render(Camera *camera, Window *window, float width, float height, Sc
     AWindowRender->RenderBegin(window);
     glViewport(0, 0, width, height);
 
-    AObject.RenderObjects(scene);
+    AObject.BatchRender();
+    // AObject.Render(box);
     AWindowRender->RenderLight(window, (vec3){0.0f, 0.0f, 0.0f});
     // AWindowRender->RenderEnd(window);
 

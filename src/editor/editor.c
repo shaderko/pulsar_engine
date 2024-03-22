@@ -244,9 +244,13 @@ static void Render(Editor *editor)
                 editor->scene = AScene->Init((vec3){1, 1, 1});
             }
 
-            Model *model = AModel->Load("assets/untitled.obj");
+            static int pos = 0;
 
-            Object *box = AObject.InitMesh(false, true, 1, (vec3){10, 10, 10}, (vec3){100, 100, 100}, model);
+            // Model *model = AModel->Load("assets/untitled.obj");
+
+            // Object *box = AObject.InitMesh((vec3){1, 1, 1}, (vec3){1, 1, 1}, (vec3){1, 1, 1}, model);
+            Object *box = AObject.InitBox((vec3){pos * 20, 0, 0}, (vec3){0, 0, 0}, (vec3){10, 10, 10});
+            pos += 1;
             AScene->Add(editor->scene, box);
         }
 
@@ -263,7 +267,7 @@ static void Render(Editor *editor)
             {
                 Model *model = AModel->Load("assets/bunny.obj");
 
-                Object *box = AObject.InitMesh(false, true, 1, (vec3){k * 100, 10, 10}, (vec3){100, 100, 100}, model);
+                Object *box = AObject.InitMesh((vec3){k * 1, 1, 1}, (vec3){1, 1, 1}, (vec3){1, 1, 1}, model);
                 AScene->Add(editor->scene, box);
             }
         }
@@ -285,7 +289,7 @@ static void Render(Editor *editor)
                     {
                         Model *model = AModel->Load("assets/bunny.obj");
 
-                        Object *box = AObject.InitMesh(false, true, 1, (vec3){j * 10, i * 10, k * 10}, (vec3){100, 100, 100}, model);
+                        Object *box = AObject.InitMesh((vec3){k * 1, 1, 1}, (vec3){1, 1, 1}, (vec3){1, 1, 1}, model);
                         AScene->Add(editor->scene, box);
                     }
                 }
@@ -316,7 +320,8 @@ static void Render(Editor *editor)
         if (editor->scene)
         {
             int objects_count = 0;
-            for(int i = 0; i < editor->scene->objects_list_size; i++) {
+            for (int i = 0; i < editor->scene->objects_list_size; i++)
+            {
                 objects_count += editor->scene->objects_list[i]->object_size;
             }
 

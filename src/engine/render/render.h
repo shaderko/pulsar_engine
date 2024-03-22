@@ -36,7 +36,7 @@ struct AWindowRender
 
     void (*RenderInitMesh)(WindowRender *render);
     void (*RenderMesh)(Model *model, mat4x4 transform);
-    void (*BatchRenderMesh)(Model *model, mat4x4 *transforms, size_t instanceCount);
+    void (*BatchRenderMesh)(Model *model, uint32_t vbo, size_t instanceCount);
 
     // Render
     void (*RenderBegin)(Window *window);

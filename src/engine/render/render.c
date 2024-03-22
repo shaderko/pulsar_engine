@@ -67,31 +67,32 @@ static void RenderInitMesh(WindowRender *render)
 
 static void RenderMesh(Model *model, mat4x4 transform)
 {
-    glUniformMatrix4fv(glGetUniformLocation(active_render->shader, "model"), 1, GL_FALSE, &transform[0][0]);
-
     glBindVertexArray(model->vao);
+    GLuint matrixVBO;
+    glGenBuffers(1, &matrixVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, matrixVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(mat4x4), &transform[0][0], GL_STATIC_DRAW);
 
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    for (int i = 0; i < 4; i++)
+    {
+        glEnableVertexAttribArray(3 + i);
+        glVertexAttribPointer(3 + i, 4, GL_FLOAT, GL_FALSE, sizeof(mat4x4), (void *)(sizeof(float) * 4 * i));
+        glVertexAttribDivisor(3 + i, 1); // Set to 0 for non-instanced drawing; typically would be 1 for instanced
+    }
+
+    // glUniformMatrix4fv(glGetUniformLocation(active_render->shader, "model"), 1, GL_FALSE, &model_matrix[0][0]);
+
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glDrawElements(GL_TRIANGLES, model->indicies_count, GL_UNSIGNED_INT, NULL);
 
     glBindVertexArray(0);
+    glDeleteBuffers(1, &matrixVBO);
 }
 
-static void BatchRenderMesh(Model *model, mat4x4 *transforms, size_t instanceCount)
+static void BatchRenderMesh(Model *model, uint32_t vbo, size_t instanceCount)
 {
-    // GLuint transformLoc = glGetUniformLocation(active_render->shader, "model");
     glBindVertexArray(model->vao);
-
-    GLuint instanceVBO;
-    glGenBuffers(1, &instanceVBO);
-
-    glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(mat4x4) * instanceCount, transforms, GL_STATIC_DRAW);
-
-    glBindVertexArray(model->vao);
-    glGenBuffers(1, &instanceVBO);
-    glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(mat4x4) * instanceCount, &transforms[0], GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
     // Set up vertex attributes for the instance matrix
     for (GLuint i = 0; i < 4; i++)
@@ -104,7 +105,6 @@ static void BatchRenderMesh(Model *model, mat4x4 *transforms, size_t instanceCou
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     glDrawElementsInstanced(GL_TRIANGLES, model->indicies_count, GL_UNSIGNED_INT, 0, instanceCount);
 
-    glDeleteBuffers(1, &instanceVBO);
     glBindVertexArray(0);
 }
 

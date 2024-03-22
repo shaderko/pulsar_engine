@@ -12,6 +12,7 @@
 #ifndef GAME_OBJECT_H
 #define GAME_OBJECT_H
 
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -28,89 +29,55 @@ typedef struct SerializedObject SerializedObject;
 struct SerializedObject
 {
     ull id;
-    vec3 position;
-    vec3 velocity;
-    float mass;
-    bool is_static;
-    bool should_render;
+    mat4x4 transform;
     SerializedCollider collider;
     SerializedRenderer renderer;
+};
+
+typedef struct ObjectGroup ObjectGroup;
+struct ObjectGroup
+{
+    Object **objects;
+    uint32_t vbo;
+
+    size_t size;
 };
 
 typedef struct Object Object;
 struct Object
 {
+    // Unique id of object
     ull id; // 8 bytes
 
-    /**
-     * Vector 3 position of object in world space
-     */
+    // Transformation of object
     mat4x4 transform; // 64 bytes
 
-    /**
-     * Vector 3 velocity in each direction
-     */
-    vec3 velocity; // 12 bytes
+    // Objects collider
+    Collider *collider; // 8 bytes
 
-    /**
-     * Mass represents the speed at which object falls,
-     * and how much velocity is transfered/lost on collision
-     */
-    float mass; // 4 bytes
-
-    /**
-     * Is a static or dynamic object (Doesn't move or does)
-     */
-    bool is_static; // 1 byte
-
-    bool should_render; // 1 byte
-
-    /**
-     * Collider of object
-     */
-    Collider *collider;
-
-    /**
-     * Object renderer
-     */
-    Renderer *renderer;
+    // Objects renderer
+    Renderer *renderer; // 8 bytes
 };
 
 struct AObject
 {
-    /**
-     * Create object
-     *
-     * Can have different collider and renderer types
-     */
-    Object *(*Init)();
+    // Initialize an object with null values
+    Object *(*Init)(vec3 position, vec3 rotation, vec3 scale);
+
     void (*Delete)(Object *object);
 
-    Object *(*Create)(bool is_static, bool should_render, float mass, vec3 position);
+    Object *(*InitBox)(vec3 position, vec3 rotation, vec3 scale);
 
     /**
      * Create an object box
      */
-    Object *(*InitBox)(bool is_static, bool should_render, float mass, vec3 position, vec3 size);
+    Object *(*InitMesh)(vec3 position, vec3 rotation, vec3 scale, Model *model);
 
-    Object *(*InitMesh)(bool is_static, bool should_render, float mass, vec3 position, vec3 size, Model *model);
-
-    Object *(*GetObjectByIndex)(int index);
-
-    /**
-     * Render object in position of object with the local position of renderer
-     */
     void (*Render)(Object *object);
-    void (*BatchRender)(Object **objects, size_t objects_size);
-    void (*RenderObjects)();
 
-    /**
-     * Updates the position of an object with objects velocity
-     */
-    void (*Update)(Object *object);
-    void (*UpdateObjects)();
+    void (*BatchRender)();
 
-    void (*UpdatePosition)(Object *object, vec3 position);
+    void (*Translate)(Object *object, vec3 position);
 
     /**
      * Serialize an object for network transfer
