@@ -11,6 +11,7 @@
 
 #include "editor.h"
 #include <SDL.h>
+#include <linmath.h>
 #include "../engine/util/util.h"
 #include "../engine/object/object.h"
 
@@ -246,10 +247,12 @@ static void Render(Editor *editor)
 
             static int pos = 0;
 
-            // Model *model = AModel->Load("assets/untitled.obj");
+            static Model *model1;
+            if (!model1)
+                model1 = AModel->Load("assets/untitled.obj");
 
             // Object *box = AObject.InitMesh((vec3){1, 1, 1}, (vec3){1, 1, 1}, (vec3){1, 1, 1}, model);
-            Object *box = AObject.InitBox((vec3){pos * 20, 0, 0}, (vec3){0, 0, 0}, (vec3){10, 10, 10});
+            Object *box = AObject.InitMesh((vec3){pos * 20, 0, 0}, (vec3){0, 0, 0}, (vec3){10, 10, 10}, model1);
             pos += 1;
             AScene->Add(editor->scene, box);
         }
@@ -265,9 +268,9 @@ static void Render(Editor *editor)
 
             for (int k = 0; k < 5; k++)
             {
-                Model *model = AModel->Load("assets/bunny.obj");
+                Model *model2 = AModel->Load("assets/bunny.obj");
 
-                Object *box = AObject.InitMesh((vec3){k * 1, 1, 1}, (vec3){1, 1, 1}, (vec3){1, 1, 1}, model);
+                Object *box = AObject.InitMesh((vec3){k * 1, 1, 1}, (vec3){0, 0, 0}, (vec3){10, 10, 10}, model2);
                 AScene->Add(editor->scene, box);
             }
         }
@@ -287,9 +290,11 @@ static void Render(Editor *editor)
                 {
                     for (int k = 0; k < 5; k++)
                     {
-                        Model *model = AModel->Load("assets/bunny.obj");
+                        static Model *model;
+                        if (!model)
+                            model = AModel->Load("assets/bunny.obj");
 
-                        Object *box = AObject.InitMesh((vec3){k * 1, 1, 1}, (vec3){1, 1, 1}, (vec3){1, 1, 1}, model);
+                        Object *box = AObject.InitMesh((vec3){k * 10, j * 10, i * 10}, (vec3){1, 1, 1}, (vec3){10, 10, 10}, model);
                         AScene->Add(editor->scene, box);
                     }
                 }
@@ -311,7 +316,7 @@ static void Render(Editor *editor)
                 {
                     for (int k = 0; k < 25; k++)
                     {
-                        Object *box = AObject.InitBox(false, true, 1, (vec3){j * 10, i * 10, k * 10}, (vec3){100, 100, 100});
+                        Object *box = AObject.InitBox((vec3){j * 10, i * 10, k * 10}, (vec3){0, 0, 0}, (vec3){10, 10, 10});
                         AScene->Add(editor->scene, box);
                     }
                 }
@@ -395,46 +400,50 @@ static void Render(Editor *editor)
             editor->window->camera->position[1] = (radius * cos(phi)) + editor->window->camera->center[1];
             editor->window->camera->position[2] = (radius * sin(phi) * sin(theta)) + editor->window->camera->center[2];
         }
-        else
+        // Calculate the forward direction vector
+        vec3 forward;
+        vec3_sub(forward, editor->window->camera->center, editor->window->camera->eye);
+        vec3_norm(forward, forward); // Normalize the forward vector
+
+        // Calculate the right direction vector
+        vec3 right;
+        vec3_mul_cross(right, forward, editor->window->camera->up);
+        vec3_norm(right, right); // Normalize the right vector
+
+        // Movement speed
+        float speed = 0.1f;
+
+        // Update camera position based on input
+        if (editor->w_pressed)
         {
-            lastX = x;
-            lastY = y;
-
-            if (editor->w_pressed)
-            {
-                editor->velocity[2] += 0.1f;
-            }
-            else if (editor->s_pressed)
-            {
-                editor->velocity[2] -= 0.1f;
-            }
-            else if (editor->a_pressed)
-            {
-                editor->velocity[0] += 0.1f;
-            }
-            else if (editor->d_pressed)
-            {
-                editor->velocity[0] -= 0.1f;
-            }
-            else if (editor->space_pressed)
-            {
-                editor->velocity[1] += 0.1f;
-            }
-            else if (editor->shift_pressed)
-            {
-                editor->velocity[1] -= 0.1f;
-            }
-            else
-            {
-                editor->velocity[0] = 0;
-                editor->velocity[1] = 0;
-                editor->velocity[2] = 0;
-            }
-
-            editor->window->camera->center[0] += editor->velocity[0];
-            editor->window->camera->center[1] += editor->velocity[1];
-            editor->window->camera->center[2] += editor->velocity[2];
+            // Move forward
+            vec3_scale(forward, forward, speed);
+            vec3_add(editor->window->camera->eye, editor->window->camera->eye, forward);
+            vec3_add(editor->window->camera->center, editor->window->camera->center, forward);
         }
+        else if (editor->s_pressed)
+        {
+            // Move backward
+            vec3_scale(forward, forward, -speed);
+            vec3_add(editor->window->camera->eye, editor->window->camera->eye, forward);
+            vec3_add(editor->window->camera->center, editor->window->camera->center, forward);
+        }
+        else if (editor->a_pressed)
+        {
+            // Move left
+            vec3_scale(right, right, -speed);
+            vec3_add(editor->window->camera->eye, editor->window->camera->eye, right);
+            vec3_add(editor->window->camera->center, editor->window->camera->center, right);
+        }
+        else if (editor->d_pressed)
+        {
+            // Move right
+            vec3_scale(right, right, speed);
+            vec3_add(editor->window->camera->eye, editor->window->camera->eye, right);
+            vec3_add(editor->window->camera->center, editor->window->camera->center, right);
+        }
+        // For simplicity, the code for up/down movement has been omitted, but would involve adjusting
+        // the camera's eye and center positions along the world's up axis (usually (0, 1, 0) or similar).
     }
 
     if (editor->window->camera)

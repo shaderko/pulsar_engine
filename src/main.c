@@ -16,6 +16,8 @@
 
 int main(int argc, char *argv[])
 {
+    clock_t start, end;
+    start = clock();
 
     // Window *main_window = AWindow->Init(WINDOW_SIZE_W, WINDOW_SIZE_H, "Pulsar Engine Editor");
     Editor *editor = AEditor->Init();
@@ -27,8 +29,13 @@ int main(int argc, char *argv[])
 
     // Object *cube = AObject.InitBox(true, true, .1f, (vec3){0, 0, 0}, (vec3){10, 10, 10});
 
-    // Scene *scene = StartCellularAutomaton();
-    // editor->scene = scene;
+    Scene *scene = StartCellularAutomaton();
+    editor->scene = scene;
+
+    end = clock(); // End timer
+    double time_taken = ((double)(end - start)) * 1000.0 / CLOCKS_PER_SEC;
+
+    printf("Time to first render: %f ms\n", time_taken);
 
     bool quit = false;
     while (!quit)
@@ -90,7 +97,7 @@ int main(int argc, char *argv[])
         AEditor->Render(editor);
     }
 
-    // deleteCellularAutomaton();
+    deleteCellularAutomaton();
 
     AWindow->Destroy(editor->window);
 

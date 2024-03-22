@@ -43,48 +43,44 @@ static void add_to_group(Object *object)
             // object_group_delete(object_group_list[i]);
         }
 
-        if (object_group_list[i]->objects[0]->renderer->model->id != object->renderer->model->id)
+        ObjectGroup *group = object_group_list[i];
+
+        if (group->objects[0]->renderer->model->id != object->renderer->model->id)
             continue;
 
-        puts("Found group adding");
+        if (group->size <= group->index + 1)
+        {
+            size_t new_size = group->size * 2;
+            // realloc objects array
+            group->objects = realloc(group->objects, sizeof(Object *) * new_size);
+            if (!group->objects)
+                ERROR_EXIT("Couldn't allocate memory for object group!\n");
 
-        object_group_list[i]->objects = realloc(object_group_list[i]->objects, sizeof(Object *) * (object_group_list[i]->size + 1));
-        object_group_list[i]->objects[object_group_list[i]->size] = object;
+            // realloc vbo array
 
-        // Step 1: Generate the temporary buffer
-        int32_t tempBuffer;
-        glGenBuffers(1, &tempBuffer);
-        glBindBuffer(GL_COPY_WRITE_BUFFER, tempBuffer);
+            // Create temp buffer to copy data from original buffer
+            GLuint tempBuffer;
+            glGenBuffers(1, &tempBuffer);
+            glBindBuffer(GL_COPY_WRITE_BUFFER, tempBuffer);
 
-        // Step 2: Allocate enough space for both old and new data in the temporary buffer
-        glBufferData(GL_COPY_WRITE_BUFFER, object_group_list[i]->size + 1, NULL, GL_STATIC_DRAW);
+            glBufferData(GL_COPY_WRITE_BUFFER, sizeof(mat4x4) * new_size, NULL, GL_STATIC_DRAW);
+            glBindBuffer(GL_COPY_READ_BUFFER, group->vbo);
+            glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER, 0, 0, sizeof(mat4x4) * group->index);
 
-        // Step 3: Bind the original buffer to GL_COPY_READ_BUFFER
-        glBindBuffer(GL_COPY_READ_BUFFER, object_group_list[i]->vbo);
+            glDeleteBuffers(1, &group->vbo);
+            group->vbo = tempBuffer;
+            group->size = new_size;
+        }
 
-        // Step 4: Copy the original data to the temporary buffer
-        glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER, 0, 0, object_group_list[i]->size);
+        group->objects[group->index] = object;
 
-        // Step 5: Reallocate the original buffer with a new size
-        glBindBuffer(GL_ARRAY_BUFFER, object_group_list[i]->vbo);
-        glBufferData(GL_ARRAY_BUFFER, object_group_list[i]->size + 1, NULL, GL_STATIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, group->vbo);
+        glBufferSubData(GL_ARRAY_BUFFER, sizeof(mat4x4) * group->index, sizeof(mat4x4), &object->transform[0][0]);
 
-        // Step 6: Copy the data from the temporary buffer back to the original buffer
-        glBindBuffer(GL_COPY_READ_BUFFER, tempBuffer);
-        glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_ARRAY_BUFFER, 0, 0, object_group_list[i]->size);
-
-        // Step 7: Now, original buffer has been resized, and you can add new data to it
-        glBufferSubData(GL_ARRAY_BUFFER, object_group_list[i]->size, object_group_list[i]->size + 1, &object->transform[0]);
-
-        // Step 8: Clean up the temporary buffer
-        glDeleteBuffers(1, &tempBuffer);
-
-        object_group_list[i]->size++;
+        group->index++;
 
         return;
     }
-
-    puts("Initializing group");
 
     ObjectGroup *group = init_group();
 
@@ -92,9 +88,11 @@ static void add_to_group(Object *object)
     group->objects[0] = object;
 
     glGenBuffers(1, &group->vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(mat4x4), &object->transform[0], GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, group->vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(mat4x4), &object->transform[0][0], GL_STATIC_DRAW);
 
     group->size = 1;
+    group->index = 1;
 }
 
 /**
@@ -210,13 +208,15 @@ static void BatchRender()
 {
     for (int i = 0; i < object_group_list_size; i++)
     {
-        if (object_group_list[i]->size <= 0)
+        ObjectGroup *group = object_group_list[i];
+
+        if (group->index <= 0)
             continue;
 
         // printf("rendering object %lld\n", object_group_list[i]->objects[0]->id);
 
         // Render(object_group_list[i]->objects[0]);
-        AObject.ARenderer->BatchRender(object_group_list[i]->objects[0], object_group_list[i]->vbo, object_group_list[i]->size);
+        AObject.ARenderer->BatchRender(group->objects[0]->renderer->model, group->vbo, group->index);
     }
 }
 

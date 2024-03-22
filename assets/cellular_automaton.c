@@ -1,5 +1,6 @@
 #include "cellular_automaton.h"
 #include "../src/engine/object/object.h"
+#include "../src/engine/util/util.h"
 
 #include <stdint.h>
 #include <math.h>
@@ -12,9 +13,9 @@
 #define GET_BYTE_INDEX(z) ((z / 8))
 #define GET_BIT_INDEX(z) (z % 8)
 
-#define X_SIZE 100
-#define Y_SIZE 100
-#define Z_SIZE 100
+#define X_SIZE 200
+#define Y_SIZE 200
+#define Z_SIZE 200
 
 uint8_t ***grid;
 
@@ -35,19 +36,28 @@ void deleteCellularAutomaton()
 
 void initializeGrid()
 {
+    printf("Initializing grid...");
 
     // Allocate memory for the X dimension
     grid = malloc(X_SIZE * sizeof(uint8_t **));
+    if (!grid)
+        ERROR_RETURN("Failed to allocate memory for grid %d X dimension", X_SIZE);
     for (int x = 0; x < X_SIZE; x++)
     {
         // Allocate memory for the Y dimension
         grid[x] = malloc(Y_SIZE * sizeof(uint8_t *));
+        if (!grid[x])
+            ERROR_RETURN("Failed to allocate memory for grid %d Y dimension", Y_SIZE);
         for (int y = 0; y < Y_SIZE; y++)
         {
             // Allocate memory for the Z dimension, compacted into bytes
             grid[x][y] = calloc(GET_BYTE_INDEX(Z_SIZE) + 1, sizeof(uint8_t));
+            if (!grid[x][y])
+                ERROR_RETURN("Failed to allocate memory for grid %d Z dimension", Z_SIZE);
         }
     }
+
+    printf("Initialized");
 
     srand(time(NULL));
 
@@ -119,7 +129,19 @@ void updateCellState(int x, int y, int z)
 
 void updateGrid()
 {
-    int tempGrid[X_SIZE][Y_SIZE][GET_BYTE_INDEX(Z_SIZE) + 1] = {0};
+    // Calculate the size of the Z dimension in bytes
+    size_t zByteSize = GET_BYTE_INDEX(Z_SIZE) + 1;
+
+    // Dynamically allocate memory for tempGrid on the heap
+    uint8_t ***tempGrid = malloc(X_SIZE * sizeof(uint8_t **));
+    for (int x = 0; x < X_SIZE; x++)
+    {
+        tempGrid[x] = malloc(Y_SIZE * sizeof(uint8_t *));
+        for (int y = 0; y < Y_SIZE; y++)
+        {
+            tempGrid[x][y] = calloc(zByteSize, sizeof(uint8_t));
+        }
+    }
 
     for (int x = 0; x < X_SIZE; x++)
     {
@@ -158,6 +180,17 @@ void updateGrid()
             }
         }
     }
+
+    // Free the allocated memory for tempGrid
+    for (int x = 0; x < X_SIZE; x++)
+    {
+        for (int y = 0; y < Y_SIZE; y++)
+        {
+            free(tempGrid[x][y]);
+        }
+        free(tempGrid[x]);
+    }
+    free(tempGrid);
 }
 
 Scene *StartCellularAutomaton()
@@ -185,7 +218,7 @@ Scene *StartCellularAutomaton()
                 if (CHECK_BIT(grid[x][y][GET_BYTE_INDEX(z)], GET_BIT_INDEX(z)))
                 {
                     printf("Cell at (%d, %d, %d) is alive.\n", x, y, z);
-                    Object *o = AObject.InitBox(false, true, 1, (vec3){x * 3, y * 3, z * 3}, (vec3){1, 1, 1});
+                    Object *o = AObject.InitBox((vec3){x * 2, y * 2, z * 2}, (vec3){0, 0, 0}, (vec3){1, 1, 1});
                     AScene->Add(scene, o);
                 }
             }

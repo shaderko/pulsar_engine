@@ -12,7 +12,7 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
-#include <inttypes.h>
+#include <glad/glad.h>
 #include <stdlib.h>
 #include <linmath.h>
 
@@ -54,7 +54,7 @@ struct ARenderer
      */
     void (*Render)(Renderer *renderer, mat4x4 transform);
 
-    void (*BatchRender)(Renderer **renderer, uint32_t vbo, size_t size);
+    void (*BatchRender)(Model *model, GLuint vbo, size_t size);
 
     /**
      * Initialize a renderer with a box model

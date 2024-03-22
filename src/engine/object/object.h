@@ -38,9 +38,10 @@ typedef struct ObjectGroup ObjectGroup;
 struct ObjectGroup
 {
     Object **objects;
-    uint32_t vbo;
+    GLuint vbo;
 
     size_t size;
+    size_t index;
 };
 
 typedef struct Object Object;

@@ -82,15 +82,20 @@ static void RenderMesh(Model *model, mat4x4 transform)
 
     // glUniformMatrix4fv(glGetUniformLocation(active_render->shader, "model"), 1, GL_FALSE, &model_matrix[0][0]);
 
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     glDrawElements(GL_TRIANGLES, model->indicies_count, GL_UNSIGNED_INT, NULL);
 
     glBindVertexArray(0);
     glDeleteBuffers(1, &matrixVBO);
 }
 
-static void BatchRenderMesh(Model *model, uint32_t vbo, size_t instanceCount)
+static void BatchRenderMesh(Model *model, GLuint vbo, size_t instanceCount)
 {
+    // mat4x4 model_matrix = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+
+    // RenderMesh(model, model_matrix);
+    // return;
+
     glBindVertexArray(model->vao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
 

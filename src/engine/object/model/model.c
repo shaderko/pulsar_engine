@@ -26,6 +26,9 @@ static Model *Init()
 
     // Initialize model to zero/null
     memset(model, 0, sizeof(Model));
+
+    model->id = generate_random_id();
+
     model->is_valid = false;
 
     return model;
@@ -46,10 +49,10 @@ static void Delete(Model *model)
 
 static Model *InitBox()
 {
-    // static box_model;
+    static Model *box_model;
 
-    // if (box_model)
-    //     return box_model;
+    if (box_model)
+        return box_model;
 
     Model *model = AModel->Init();
 
@@ -96,7 +99,7 @@ static Model *InitBox()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-    // box_model = model;
+    box_model = model;
 
     return model;
 }

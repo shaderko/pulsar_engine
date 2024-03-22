@@ -74,7 +74,7 @@ static void Render(Renderer *renderer, mat4x4 transform)
     AWindowRender->RenderMesh(renderer->model, transform); // renderer->rotation, renderer->scale TODO:
 }
 
-static void BatchRender(Model *model, uint32_t vbo, size_t size)
+static void BatchRender(Model *model, GLuint vbo, size_t size)
 {
     // Batch render the models
     AWindowRender->BatchRenderMesh(model, vbo, size);

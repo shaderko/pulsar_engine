@@ -13,6 +13,7 @@
 #define RENDER_H
 
 #include <inttypes.h>
+#include <glad/glad.h>
 #include <linmath.h>
 #include "../object/model/model.h"
 
@@ -36,7 +37,7 @@ struct AWindowRender
 
     void (*RenderInitMesh)(WindowRender *render);
     void (*RenderMesh)(Model *model, mat4x4 transform);
-    void (*BatchRenderMesh)(Model *model, uint32_t vbo, size_t instanceCount);
+    void (*BatchRenderMesh)(Model *model, GLuint vbo, size_t instanceCount);
 
     // Render
     void (*RenderBegin)(Window *window);

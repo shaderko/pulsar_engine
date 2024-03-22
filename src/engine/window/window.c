@@ -55,12 +55,12 @@ static Window *Init(int width, int height, char *title)
         ERROR_EXIT("window creation failed: %s\n", SDL_GetError());
     }
 
-    // window->renderer = SDL_CreateRenderer(window->sdl_window, -1, SDL_RENDERER_ACCELERATED);
+    window->renderer = SDL_CreateRenderer(window->sdl_window, -1, SDL_RENDERER_ACCELERATED);
 
-    // if (!window->renderer)
-    // {
-    //     ERROR_EXIT("renderer creation failed: %s\n", SDL_GetError());
-    // }
+    if (!window->renderer)
+    {
+        ERROR_EXIT("renderer creation failed: %s\n", SDL_GetError());
+    }
 
     window->context = SDL_GL_CreateContext(window->sdl_window);
     if (!window->context)
