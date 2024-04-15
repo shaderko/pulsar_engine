@@ -13,6 +13,7 @@
 #include "../common/global/global.h"
 #include "../util/util.h"
 #include "../object/object.h"
+#include "../object/map/scene.h"
 
 static Camera *Init()
 {
@@ -116,7 +117,7 @@ static void Render(Camera *camera, Window *window, float width, float height, Sc
 
     glBindFramebuffer(GL_FRAMEBUFFER, camera->fbo);
 
-    AWindowRender->RenderBegin(window);
+    AWindowRender->RenderBegin(window, camera);
     glViewport(0, 0, width, height);
 
     AObject.BatchRender();

@@ -15,7 +15,9 @@
 #include <linmath.h>
 #include <glad/glad.h>
 #include "../render/render.h"
-#include "../object/map/scene.h"
+
+// Defined for circular import
+typedef struct Scene Scene;
 
 typedef struct Camera Camera;
 struct Camera

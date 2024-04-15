@@ -16,7 +16,6 @@
 #include <SDL.h>
 #include "../util/util.h"
 #include "../render/render.h"
-#include "../camera/camera.h"
 
 typedef struct Window Window;
 struct Window
@@ -32,8 +31,6 @@ struct Window
     SDL_GLContext context;
 
     WindowRender *render;
-
-    Camera *camera;
 };
 
 struct AWindow

@@ -15,6 +15,7 @@
 #include <linmath.h>
 
 #include "../object.h"
+#include "../../camera/camera.h"
 
 typedef struct ObjectList ObjectList;
 struct ObjectList
@@ -26,10 +27,8 @@ struct ObjectList
 typedef struct Scene Scene;
 struct Scene
 {
-    /**
-     * Defines bounds of a scene
-     */
-    vec3 size;
+    Camera **cameras;
+    size_t cameras_size;
 
     /**
      * Array of objects in a scene
@@ -43,7 +42,7 @@ struct AScene
     /**
      * Initializes a scene
      */
-    Scene *(*Init)(vec3 *);
+    Scene *(*Init)();
     void (*Delete)(Scene *scene);
 
     /**
@@ -54,7 +53,9 @@ struct AScene
     /**
      * Adds an object to a scene
      */
-    void (*Add)(Scene *scene, Object *object);
+    void (*AddObject)(Scene *scene, Object *object);
+
+    void (*AddCamera)(Scene *scene, Camera *camera);
 
     void (*Render)(Scene *scene);
 

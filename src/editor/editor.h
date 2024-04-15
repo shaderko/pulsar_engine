@@ -21,9 +21,17 @@
 #include "../engine/window/window.h"
 #include "../engine/object/map/scene.h"
 
+typedef struct EditorCamera EditorCamera;
+struct EditorCamera
+{
+    Camera *camera;
+};
+
 typedef struct Editor Editor;
 struct Editor
 {
+    EditorCamera *editor_camera;
+
     Window *window;
 
     ImGuiContext *imgui_context;

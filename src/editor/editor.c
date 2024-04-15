@@ -24,6 +24,15 @@ static Editor *Init()
     editor->window = AWindow->Init(1280, 720, "Pulsar Engine Editor");
     editor->scene = NULL;
 
+    editor->editor_camera = malloc(sizeof(EditorCamera));
+    if (!editor->editor_camera)
+    {
+        ERROR_EXIT("Failed to allocate editor camera\n");
+    }
+
+    memset(editor->editor_camera, 0, sizeof(EditorCamera));
+    editor->editor_camera->camera = ACamera->InitPerspective(0.78539816339f, (float)1920 / (float)1080, 0.0001f, 100000.0f);
+
     // TODO: delete, only for testing
     editor->btn_pressed = false;
     memcpy(editor->velocity, (vec3){0, 0, 0}, sizeof(vec3));
@@ -177,7 +186,7 @@ static void Render(Editor *editor)
                 }
 
                 Object *box = AObject.InitBox(false, true, 1, (vec3){0, 0, 0}, (vec3){100, 100, 100});
-                AScene->Add(editor->scene, box);
+                AScene->AddObject(editor->scene, box);
             }
             if (igMenuItem_Bool("Sphere", NULL, false, true))
             {
@@ -254,7 +263,7 @@ static void Render(Editor *editor)
             // Object *box = AObject.InitMesh((vec3){1, 1, 1}, (vec3){1, 1, 1}, (vec3){1, 1, 1}, model);
             Object *box = AObject.InitMesh((vec3){pos * 20, 0, 0}, (vec3){0, 0, 0}, (vec3){10, 10, 10}, model1);
             pos += 1;
-            AScene->Add(editor->scene, box);
+            AScene->AddObject(editor->scene, box);
         }
 
         bool createFiveObjects = igButton("Create 5 objects", (ImVec2){200, 20});
@@ -271,7 +280,7 @@ static void Render(Editor *editor)
                 Model *model2 = AModel->Load("assets/bunny.obj");
 
                 Object *box = AObject.InitMesh((vec3){k * 1, 1, 1}, (vec3){0, 0, 0}, (vec3){10, 10, 10}, model2);
-                AScene->Add(editor->scene, box);
+                AScene->AddObject(editor->scene, box);
             }
         }
 
@@ -295,7 +304,7 @@ static void Render(Editor *editor)
                             model = AModel->Load("assets/bunny.obj");
 
                         Object *box = AObject.InitMesh((vec3){k * 10, j * 10, i * 10}, (vec3){1, 1, 1}, (vec3){10, 10, 10}, model);
-                        AScene->Add(editor->scene, box);
+                        AScene->AddObject(editor->scene, box);
                     }
                 }
             }
@@ -317,7 +326,7 @@ static void Render(Editor *editor)
                     for (int k = 0; k < 25; k++)
                     {
                         Object *box = AObject.InitBox((vec3){j * 10, i * 10, k * 10}, (vec3){0, 0, 0}, (vec3){10, 10, 10});
-                        AScene->Add(editor->scene, box);
+                        AScene->AddObject(editor->scene, box);
                     }
                 }
             }
@@ -349,29 +358,29 @@ static void Render(Editor *editor)
         igEnd();
     }
 
-    if (editor->window->camera)
+    if (editor->editor_camera->camera)
     {
         igBegin("Camera window", NULL, 0);
 
         bool is_pressed = igButton("Create camera", (ImVec2){100, 20});
         if (is_pressed)
         {
-            free(editor->window->camera);
-
-            editor->window->camera = ACamera->InitPerspective(0.78539816339f, (float)1920 / (float)1080, 0.0001f, 100000.0f);
+            puts("Creating new camera...");
+            Camera *camera = ACamera->InitPerspective(0.78539816339f, (float)1920 / (float)1080, 0.0001f, 100000.0f);
+            AScene->AddCamera(editor->scene, camera);
         }
 
-        igSliderFloat("UP_X", &editor->window->camera->up[0], 0.0f, 100.0f, "%.1f", 0);
-        igSliderFloat("UP_Y", &editor->window->camera->up[1], 0.0f, 100.0f, "%.1f", 0);
-        igSliderFloat("UP_Z", &editor->window->camera->up[2], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("UP_X", &editor->editor_camera->camera->up[0], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("UP_Y", &editor->editor_camera->camera->up[1], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("UP_Z", &editor->editor_camera->camera->up[2], 0.0f, 100.0f, "%.1f", 0);
 
-        igSliderFloat("CENTER_X", &editor->window->camera->center[0], 0.0f, 100.0f, "%.1f", 0);
-        igSliderFloat("CENTER_Y", &editor->window->camera->center[1], 0.0f, 100.0f, "%.1f", 0);
-        igSliderFloat("CENTER_Z", &editor->window->camera->center[2], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("CENTER_X", &editor->editor_camera->camera->center[0], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("CENTER_Y", &editor->editor_camera->camera->center[1], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("CENTER_Z", &editor->editor_camera->camera->center[2], 0.0f, 100.0f, "%.1f", 0);
 
-        igSliderFloat("POSITION_X", &editor->window->camera->position[0], 0.0f, 100.0f, "%.1f", 0);
-        igSliderFloat("POSITION_Y", &editor->window->camera->position[1], 0.0f, 100.0f, "%.1f", 0);
-        igSliderFloat("POSITION_Z", &editor->window->camera->position[2], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("POSITION_X", &editor->editor_camera->camera->position[0], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("POSITION_Y", &editor->editor_camera->camera->position[1], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("POSITION_Z", &editor->editor_camera->camera->position[2], 0.0f, 100.0f, "%.1f", 0);
 
         igEnd();
 
@@ -396,18 +405,18 @@ static void Render(Editor *editor)
             // Clamp phi to prevent the camera from flipping over at the poles
             phi = fmax(0.1f, fmin(M_PI - 0.1f, phi));
 
-            editor->window->camera->position[0] = (radius * sin(phi) * cos(theta)) + editor->window->camera->center[0];
-            editor->window->camera->position[1] = (radius * cos(phi)) + editor->window->camera->center[1];
-            editor->window->camera->position[2] = (radius * sin(phi) * sin(theta)) + editor->window->camera->center[2];
+            editor->editor_camera->camera->position[0] = (radius * sin(phi) * cos(theta)) + editor->editor_camera->camera->center[0];
+            editor->editor_camera->camera->position[1] = (radius * cos(phi)) + editor->editor_camera->camera->center[1];
+            editor->editor_camera->camera->position[2] = (radius * sin(phi) * sin(theta)) + editor->editor_camera->camera->center[2];
         }
         // Calculate the forward direction vector
         vec3 forward;
-        vec3_sub(forward, editor->window->camera->center, editor->window->camera->eye);
+        vec3_sub(forward, editor->editor_camera->camera->center, editor->editor_camera->camera->eye);
         vec3_norm(forward, forward); // Normalize the forward vector
 
         // Calculate the right direction vector
         vec3 right;
-        vec3_mul_cross(right, forward, editor->window->camera->up);
+        vec3_mul_cross(right, forward, editor->editor_camera->camera->up);
         vec3_norm(right, right); // Normalize the right vector
 
         // Movement speed
@@ -418,46 +427,85 @@ static void Render(Editor *editor)
         {
             // Move forward
             vec3_scale(forward, forward, speed);
-            vec3_add(editor->window->camera->eye, editor->window->camera->eye, forward);
-            vec3_add(editor->window->camera->center, editor->window->camera->center, forward);
+            vec3_add(editor->editor_camera->camera->eye, editor->editor_camera->camera->eye, forward);
+            vec3_add(editor->editor_camera->camera->center, editor->editor_camera->camera->center, forward);
         }
         else if (editor->s_pressed)
         {
             // Move backward
             vec3_scale(forward, forward, -speed);
-            vec3_add(editor->window->camera->eye, editor->window->camera->eye, forward);
-            vec3_add(editor->window->camera->center, editor->window->camera->center, forward);
+            vec3_add(editor->editor_camera->camera->eye, editor->editor_camera->camera->eye, forward);
+            vec3_add(editor->editor_camera->camera->center, editor->editor_camera->camera->center, forward);
         }
         else if (editor->a_pressed)
         {
             // Move left
             vec3_scale(right, right, -speed);
-            vec3_add(editor->window->camera->eye, editor->window->camera->eye, right);
-            vec3_add(editor->window->camera->center, editor->window->camera->center, right);
+            vec3_add(editor->editor_camera->camera->eye, editor->editor_camera->camera->eye, right);
+            vec3_add(editor->editor_camera->camera->center, editor->editor_camera->camera->center, right);
         }
         else if (editor->d_pressed)
         {
             // Move right
             vec3_scale(right, right, speed);
-            vec3_add(editor->window->camera->eye, editor->window->camera->eye, right);
-            vec3_add(editor->window->camera->center, editor->window->camera->center, right);
+            vec3_add(editor->editor_camera->camera->eye, editor->editor_camera->camera->eye, right);
+            vec3_add(editor->editor_camera->camera->center, editor->editor_camera->camera->center, right);
         }
         // For simplicity, the code for up/down movement has been omitted, but would involve adjusting
         // the camera's eye and center positions along the world's up axis (usually (0, 1, 0) or similar).
     }
 
-    if (editor->window->camera)
+    if (editor->editor_camera->camera)
     {
-        igBegin("Camera Render", NULL, 0);
+        igBegin("Editor Camera Render", NULL, 0);
 
         ImVec2 windowSize;
         igGetContentRegionAvail(&windowSize);
 
-        ACamera->Render(editor->window->camera, editor->window, windowSize.x, windowSize.y, editor->scene);
+        ACamera->Render(editor->editor_camera->camera, editor->window, windowSize.x, windowSize.y, editor->scene);
 
-        ImTextureID myTextureID = (ImTextureID)editor->window->camera->color; // Cast your texture identifier to ImTextureID
-        ImVec2 imageSize = (ImVec2){windowSize.x, windowSize.y};              // Display the image as 100x100 pixels
-        ImVec2 uv0 = (ImVec2){0, 0};                                          // Use the whole texture
+        ImTextureID myTextureID = (ImTextureID)editor->editor_camera->camera->color; // Cast your texture identifier to ImTextureID
+        ImVec2 imageSize = (ImVec2){windowSize.x, windowSize.y};                     // Display the image as 100x100 pixels
+        ImVec2 uv0 = (ImVec2){0, 0};                                                 // Use the whole texture
+        ImVec2 uv1 = (ImVec2){1, 1};
+        ImVec4 tintCol = (ImVec4){1.0f, 1.0f, 1.0f, 1.0f};
+        ImVec4 borderCol = (ImVec4){0.0f, 0.0f, 0.0f, 0.0f};
+
+        igImage(myTextureID, imageSize, uv0, uv1, tintCol, borderCol);
+
+        igEnd();
+    }
+
+    for (int i = 0; i < editor->scene->cameras_size; i++)
+    {
+        Camera *camera = editor->scene->cameras[i];
+
+        igSliderFloat("UP_X", &camera->up[0], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("UP_Y", &camera->up[1], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("UP_Z", &camera->up[2], 0.0f, 100.0f, "%.1f", 0);
+
+        igSliderFloat("CENTER_X", &camera->center[0], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("CENTER_Y", &camera->center[1], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("CENTER_Z", &camera->center[2], 0.0f, 100.0f, "%.1f", 0);
+
+        igSliderFloat("POSITION_X", &camera->position[0], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("POSITION_Y", &camera->position[1], 0.0f, 100.0f, "%.1f", 0);
+        igSliderFloat("POSITION_Z", &camera->position[2], 0.0f, 100.0f, "%.1f", 0);
+
+        char windowTitle[256];
+        snprintf(windowTitle, sizeof(windowTitle), "Camera Render #%d", i);
+
+        igBegin(&windowTitle, NULL, 0);
+
+        ImVec2 windowSize;
+        igGetContentRegionAvail(&windowSize);
+
+        ACamera->UpdateView(camera);
+        ACamera->Render(camera, editor->window, windowSize.x, windowSize.y, editor->scene);
+
+        ImTextureID myTextureID = (ImTextureID)camera->color;    // Cast your texture identifier to ImTextureID
+        ImVec2 imageSize = (ImVec2){windowSize.x, windowSize.y}; // Display the image as 100x100 pixels
+        ImVec2 uv0 = (ImVec2){0, 0};                             // Use the whole texture
         ImVec2 uv1 = (ImVec2){1, 1};
         ImVec4 tintCol = (ImVec4){1.0f, 1.0f, 1.0f, 1.0f};
         ImVec4 borderCol = (ImVec4){0.0f, 0.0f, 0.0f, 0.0f};

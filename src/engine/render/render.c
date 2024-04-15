@@ -13,6 +13,7 @@
 #include "render.h"
 #include "../window/window.h"
 #include "../util/util.h"
+#include "../camera/camera.h"
 
 static WindowRender *active_render = NULL;
 
@@ -31,7 +32,7 @@ static WindowRender *Init()
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_DEPTH_CLAMP);
 
-    // // Enable face culling
+    // Enable face culling
     // glEnable(GL_CULL_FACE);
     // // Cull back faces
     // glCullFace(GL_BACK);
@@ -65,6 +66,7 @@ static void RenderInitMesh(WindowRender *render)
     // glEnableVertexAttribArray(1);
 }
 
+// Render single mesh
 static void RenderMesh(Model *model, mat4x4 transform)
 {
     glBindVertexArray(model->vao);
@@ -77,10 +79,8 @@ static void RenderMesh(Model *model, mat4x4 transform)
     {
         glEnableVertexAttribArray(3 + i);
         glVertexAttribPointer(3 + i, 4, GL_FLOAT, GL_FALSE, sizeof(mat4x4), (void *)(sizeof(float) * 4 * i));
-        glVertexAttribDivisor(3 + i, 1); // Set to 0 for non-instanced drawing; typically would be 1 for instanced
+        glVertexAttribDivisor(3 + i, 1);
     }
-
-    // glUniformMatrix4fv(glGetUniformLocation(active_render->shader, "model"), 1, GL_FALSE, &model_matrix[0][0]);
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     glDrawElements(GL_TRIANGLES, model->indicies_count, GL_UNSIGNED_INT, NULL);
@@ -91,11 +91,6 @@ static void RenderMesh(Model *model, mat4x4 transform)
 
 static void BatchRenderMesh(Model *model, GLuint vbo, size_t instanceCount)
 {
-    // mat4x4 model_matrix = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
-
-    // RenderMesh(model, model_matrix);
-    // return;
-
     glBindVertexArray(model->vao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
@@ -113,7 +108,7 @@ static void BatchRenderMesh(Model *model, GLuint vbo, size_t instanceCount)
     glBindVertexArray(0);
 }
 
-static void RenderBegin(Window *window)
+static void RenderBegin(Window *window, Camera *camera)
 {
     SDL_GL_MakeCurrent(window->sdl_window, window->context);
     active_render = window->render;
@@ -121,8 +116,8 @@ static void RenderBegin(Window *window)
 
     glEnable(GL_DEPTH_TEST);
 
-    glUniformMatrix4fv(glGetUniformLocation(window->render->shader, "projection"), 1, GL_FALSE, &window->camera->projection[0][0]);
-    glUniformMatrix4fv(glGetUniformLocation(window->render->shader, "view"), 1, GL_FALSE, &window->camera->view[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(window->render->shader, "projection"), 1, GL_FALSE, &camera->projection[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(window->render->shader, "view"), 1, GL_FALSE, &camera->view[0][0]);
 
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

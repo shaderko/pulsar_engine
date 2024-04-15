@@ -17,6 +17,8 @@
 #include <linmath.h>
 #include "../object/model/model.h"
 
+typedef struct Camera Camera;
+
 typedef struct Window Window;
 
 typedef struct WindowRender WindowRender;
@@ -40,7 +42,7 @@ struct AWindowRender
     void (*BatchRenderMesh)(Model *model, GLuint vbo, size_t instanceCount);
 
     // Render
-    void (*RenderBegin)(Window *window);
+    void (*RenderBegin)(Window *window, Camera *camera);
     void (*RenderEnd)(Window *window);
 
     void (*RenderLight)(Window *window, vec3 position);

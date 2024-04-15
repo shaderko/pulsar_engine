@@ -13,9 +13,9 @@
 #define GET_BYTE_INDEX(z) ((z / 8))
 #define GET_BIT_INDEX(z) (z % 8)
 
-#define X_SIZE 200
-#define Y_SIZE 200
-#define Z_SIZE 200
+#define X_SIZE 150
+#define Y_SIZE 150
+#define Z_SIZE 150
 
 uint8_t ***grid;
 
@@ -219,7 +219,7 @@ Scene *StartCellularAutomaton()
                 {
                     printf("Cell at (%d, %d, %d) is alive.\n", x, y, z);
                     Object *o = AObject.InitBox((vec3){x * 2, y * 2, z * 2}, (vec3){0, 0, 0}, (vec3){1, 1, 1});
-                    AScene->Add(scene, o);
+                    // AScene->Add(scene, o);
                 }
             }
         }

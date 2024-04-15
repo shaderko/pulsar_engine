@@ -27,6 +27,8 @@ static ObjectGroup *init_group()
 
     memset(object_group, 0, sizeof(ObjectGroup));
 
+    object_group->mutex = SDL_CreateMutex();
+
     object_group_list = realloc(object_group_list, sizeof(ObjectGroup *) * (object_group_list_size + 1));
     object_group_list[object_group_list_size] = object_group;
     object_group_list_size++;
@@ -34,14 +36,35 @@ static ObjectGroup *init_group()
     return object_group;
 }
 
+static resize_group(ObjectGroup *group, size_t new_size)
+{
+    // realloc objects array
+    group->objects = realloc(group->objects, sizeof(Object *) * new_size);
+    if (!group->objects)
+        ERROR_EXIT("Couldn't allocate memory for object group!\n");
+
+    // Create temp buffer to copy data from original buffer
+    GLuint tempBuffer;
+    glGenBuffers(1, &tempBuffer);
+    glBindBuffer(GL_COPY_WRITE_BUFFER, tempBuffer);
+
+    glBufferData(GL_COPY_WRITE_BUFFER, sizeof(mat4x4) * new_size, NULL, GL_STATIC_DRAW);
+    glBindBuffer(GL_COPY_READ_BUFFER, group->vbo);
+    glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER, 0, 0, sizeof(mat4x4) * group->index);
+
+    glDeleteBuffers(1, &group->vbo);
+    group->vbo = tempBuffer;
+    group->size = new_size;
+}
+
 static void add_to_group(Object *object)
 {
     for (int i = 0; i < object_group_list_size; i++)
     {
-        if (object_group_list[i]->size <= 0)
-        {
-            // object_group_delete(object_group_list[i]);
-        }
+        // if (object_group_list[i]->size <= 0)
+        // {
+        //     // object_group_delete(object_group_list[i]);
+        // }
 
         ObjectGroup *group = object_group_list[i];
 
@@ -50,26 +73,7 @@ static void add_to_group(Object *object)
 
         if (group->size <= group->index + 1)
         {
-            size_t new_size = group->size * 2;
-            // realloc objects array
-            group->objects = realloc(group->objects, sizeof(Object *) * new_size);
-            if (!group->objects)
-                ERROR_EXIT("Couldn't allocate memory for object group!\n");
-
-            // realloc vbo array
-
-            // Create temp buffer to copy data from original buffer
-            GLuint tempBuffer;
-            glGenBuffers(1, &tempBuffer);
-            glBindBuffer(GL_COPY_WRITE_BUFFER, tempBuffer);
-
-            glBufferData(GL_COPY_WRITE_BUFFER, sizeof(mat4x4) * new_size, NULL, GL_STATIC_DRAW);
-            glBindBuffer(GL_COPY_READ_BUFFER, group->vbo);
-            glCopyBufferSubData(GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER, 0, 0, sizeof(mat4x4) * group->index);
-
-            glDeleteBuffers(1, &group->vbo);
-            group->vbo = tempBuffer;
-            group->size = new_size;
+            resize_group(group, group->size * 2);
         }
 
         group->objects[group->index] = object;
@@ -163,6 +167,32 @@ static Object *InitBox(vec3 position, vec3 rotation, vec3 scale)
     return object;
 }
 
+static size_t *InitBoxMultiple(vec3 *position, vec3 *rotation, vec3 *scale, size_t size)
+{
+    Model *box_model = AModel->InitBox();
+
+    for (int i = 0; i < object_group_list_size; i++)
+    {
+        ObjectGroup *group = object_group_list[i];
+
+        if (group->objects[0]->renderer->model->id != box_model->id)
+            continue;
+
+        resize_group(group, group->size + size);
+
+        for (int i = 0; i < size; i++)
+        {
+            Object *object = AObject.Init(position[i], rotation[i], scale[i]);
+
+            group->objects[group->index] = object;
+            object->renderer = AObject.ARenderer->InitBox((vec3){0, 0, 0}, (vec3){0, 0, 0}, (vec3){1, 1, 1});
+            // object->collider = ACollider->InitBox((vec3){0, 0, 0}, size);
+        }
+    }
+
+    return size;
+}
+
 /**
  * @brief Create a mesh object
  *
@@ -213,9 +243,11 @@ static void BatchRender()
         if (group->index <= 0)
             continue;
 
-        // printf("rendering object %lld\n", object_group_list[i]->objects[0]->id);
+        // for (int j = 0; j < group->index; j++)
+        // {
+        //     AObject.ARenderer->Render(group->objects[j]->renderer, group->objects[j]->transform);
+        // }
 
-        // Render(object_group_list[i]->objects[0]);
         AObject.ARenderer->BatchRender(group->objects[0]->renderer->model, group->vbo, group->index);
     }
 }

@@ -160,7 +160,7 @@ static void ProcessData(Room *room)
         object->renderer.derived.data = malloc(object->renderer.derived.len);
         memcpy(object->renderer.derived.data, message->data + sizeof(SerializedObject) + object->collider.derived.len, object->renderer.derived.len);
 
-        AScene->Add(room->scene, AObject.Deserialize(object, room->scene));
+        AScene->AddObject(room->scene, AObject.Deserialize(object, room->scene));
 
         free(object->collider.derived.data);
         free(object->renderer.derived.data);

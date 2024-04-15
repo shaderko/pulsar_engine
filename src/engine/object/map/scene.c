@@ -15,7 +15,7 @@
 #include "scene.h"
 #include "../object.h"
 
-static Scene *Init(vec3 *size)
+static Scene *Init()
 {
     Scene *scene = malloc(sizeof(Scene));
     if (!scene)
@@ -23,9 +23,7 @@ static Scene *Init(vec3 *size)
         ERROR_EXIT("Scene memory couldn't be allocated!\n");
     }
 
-    memcpy(scene->size, size, sizeof(vec3));
-    scene->objects_list = NULL;
-    scene->objects_list_size = 0;
+    memset(scene, 0, sizeof(Scene));
 
     return scene;
 }
@@ -49,7 +47,7 @@ static void Update(Scene *scene)
     // }
 }
 
-static void Add(Scene *scene, Object *object)
+static void AddObject(Scene *scene, Object *object)
 {
     if (!scene || !object)
     {
@@ -86,6 +84,22 @@ static void Add(Scene *scene, Object *object)
     scene->objects_list = realloc(scene->objects_list, sizeof(ObjectList *) * (scene->objects_list_size + 1));
     scene->objects_list[scene->objects_list_size] = object_list;
     scene->objects_list_size++;
+}
+
+static void AddCamera(Scene *scene, Camera *camera)
+{
+    if (!scene || !camera)
+    {
+        return;
+    }
+
+    scene->cameras = realloc(scene->cameras, sizeof(Camera *) * (scene->cameras_size + 1));
+    if (!scene->cameras)
+    {
+        ERROR_EXIT("Couldn't allocate memory for scene cameras!\n");
+    }
+    scene->cameras[scene->cameras_size] = camera;
+    scene->cameras_size++;
 }
 
 static void Render(Scene *scene)
@@ -160,7 +174,8 @@ struct AScene AScene[1] =
         Init,
         Delete,
         Update,
-        Add,
+        AddObject,
+        AddCamera,
         Render,
         WriteToFile,
         ReadFile,

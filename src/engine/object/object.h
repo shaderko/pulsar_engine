@@ -12,6 +12,7 @@
 #ifndef GAME_OBJECT_H
 #define GAME_OBJECT_H
 
+#include <SDL.h>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -39,6 +40,7 @@ struct ObjectGroup
 {
     Object **objects;
     GLuint vbo;
+    SDL_mutex *mutex;
 
     size_t size;
     size_t index;
