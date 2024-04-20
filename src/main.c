@@ -22,8 +22,10 @@ int main(int argc, char *argv[])
     // Window *main_window = AWindow->Init(WINDOW_SIZE_W, WINDOW_SIZE_H, "Pulsar Engine Editor");
     Editor *editor = AEditor->Init();
 
-    Scene *scene = StartCellularAutomaton();
-    editor->scene = scene;
+    // Scene *scene = StartCellularAutomaton();
+    // editor->scene = scene;
+
+    // All Start functions run here
 
     end = clock(); // End timer
     double time_taken = ((double)(end - start)) * 1000.0 / CLOCKS_PER_SEC;
@@ -53,9 +55,11 @@ int main(int argc, char *argv[])
 
         ACamera->UpdateView(editor->editor_camera->camera);
 
-        // Run main from assets
+        // Run Update from assets
 
         AEditor->Render(editor);
+
+        // Run LateUpdate from assets
     }
 
     deleteCellularAutomaton();

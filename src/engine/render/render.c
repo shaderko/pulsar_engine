@@ -47,6 +47,12 @@ static WindowRender *Init()
     return render;
 }
 
+static void SpriteRender();
+
+static void RectangleRender();
+
+static void PlaneRender();
+
 static void RenderInitMesh(WindowRender *render)
 {
     glGenVertexArrays(1, &render->vao);
@@ -66,7 +72,6 @@ static void RenderInitMesh(WindowRender *render)
     // glEnableVertexAttribArray(1);
 }
 
-// Render single mesh
 static void RenderMesh(Model *model, mat4x4 transform)
 {
     glBindVertexArray(model->vao);
