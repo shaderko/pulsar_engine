@@ -10,10 +10,13 @@
  */
 
 #include <glad/glad.h>
+#include <time.h>
+
 #include "render.h"
-#include "../window/window.h"
 #include "../util/util.h"
+#include "../window/window.h"
 #include "../camera/camera.h"
+#include "../object/map/scene.h"
 
 static WindowRender *active_render = NULL;
 
@@ -21,16 +24,13 @@ static WindowRender *Init()
 {
     WindowRender *render = malloc(sizeof(WindowRender));
     if (!render)
-    {
-        ERROR_EXIT("Failed to allocate render struct\n");
-    }
+        ERROR_EXIT("[ERROR] Failed to allocate memory for Window Render.");
 
     // Set up shaders
-    render->shader = render_shader_create_name("./shaders/default");
+    render_init_shaders(render);
 
-    glUseProgram(render->shader);
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_DEPTH_CLAMP);
+    // glEnable(GL_DEPTH_TEST);
+    // glEnable(GL_DEPTH_CLAMP);
 
     // Enable face culling
     // glEnable(GL_CULL_FACE);
@@ -39,78 +39,126 @@ static WindowRender *Init()
     // // Define front faces (counter-clockwise winding)
     // glFrontFace(GL_CCW);
 
-    AWindowRender->RenderInitMesh(render);
-
     // Set this render as active
     active_render = render;
+
+    AWindowRender->RenderScreenInit();
 
     return render;
 }
 
 static void SpriteRender();
 
-static void RectangleRender();
-
-static void PlaneRender();
-
-static void RenderInitMesh(WindowRender *render)
+static void RenderScreenInit()
 {
-    glGenVertexArrays(1, &render->vao);
-    glGenBuffers(1, &render->vbo);
-    glGenBuffers(1, &render->ebo);
+    float vertices[] = {
+        // Positions   // TexCoords
+        -1.0f, 1.0f, 0.0f, 0.0f,  // Top-left
+        -1.0f, -1.0f, 0.0f, 1.0f, // Bottom-left
+        1.0f, -1.0f, 1.0f, 1.0f,  // Bottom-right
 
-    glBindVertexArray(render->vao);
-    glBindBuffer(GL_ARRAY_BUFFER, render->vbo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, render->ebo);
+        -1.0f, 1.0f, 0.0f, 0.0f, // Top-left
+        1.0f, -1.0f, 1.0f, 1.0f, // Bottom-right
+        1.0f, 1.0f, 1.0f, 0.0f   // Top-right
+    };
+
+    glGenVertexArrays(1, &active_render->screen_vao);
+    glGenBuffers(1, &active_render->screen_vbo);
+
+    glBindVertexArray(active_render->screen_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, active_render->screen_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
     // Position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
     glEnableVertexAttribArray(0);
 
-    // UV attribute
-    // glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(f32), (void *)(3 * sizeof(f32)));
-    // glEnableVertexAttribArray(1);
+    // Texture coordinate attribute
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+    glBindVertexArray(0); // Unbind VAO
 }
 
-static void RenderMesh(Model *model, mat4x4 transform)
+static void RenderScreen(Camera *camera)
 {
-    glBindVertexArray(model->vao);
-    GLuint matrixVBO;
-    glGenBuffers(1, &matrixVBO);
-    glBindBuffer(GL_ARRAY_BUFFER, matrixVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(mat4x4), &transform[0][0], GL_STATIC_DRAW);
+    glUseProgram(active_render->shader_screen);
 
-    for (int i = 0; i < 4; i++)
-    {
-        glEnableVertexAttribArray(3 + i);
-        glVertexAttribPointer(3 + i, 4, GL_FLOAT, GL_FALSE, sizeof(mat4x4), (void *)(sizeof(float) * 4 * i));
-        glVertexAttribDivisor(3 + i, 1);
-    }
-
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    glDrawElements(GL_TRIANGLES, model->indicies_count, GL_UNSIGNED_INT, NULL);
-
-    glBindVertexArray(0);
-    glDeleteBuffers(1, &matrixVBO);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glBindTexture(GL_TEXTURE_2D, camera->image_out); // Bind the texture
+    glBindVertexArray(active_render->screen_vao);    // Bind VAO
+    glDrawArrays(GL_TRIANGLES, 0, 6);                // Draw the quad
 }
 
-static void BatchRenderMesh(Model *model, GLuint vbo, size_t instanceCount)
+static void RenderSceneChunks(Scene *scene, Camera *camera, int width, int height)
 {
-    glBindVertexArray(model->vao);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glUseProgram(active_render->shader);
 
-    // Set up vertex attributes for the instance matrix
-    for (GLuint i = 0; i < 4; i++)
+    // Start timer to track how much time it takes to render
+    GLuint queries[2];
+    glGenQueries(2, queries);
+    glBeginQuery(GL_TIME_ELAPSED, queries[0]);
+
+    static SerializedScene serialized_scene = {0};
+    if (serialized_scene.chunks_data_size == 0)
     {
-        glEnableVertexAttribArray(3 + i); // Assuming attributes 0, 1, 2 are used for position, normal, texture, etc.
-        glVertexAttribPointer(3 + i, 4, GL_FLOAT, GL_FALSE, sizeof(mat4x4), (void *)(sizeof(vec4) * i));
-        glVertexAttribDivisor(3 + i, 1); // This attribute only updates per-instance, not per-vertex
+        puts("[INFO] Serializing scene.");
+        serialized_scene = AScene.SerializeChunks(scene);
+
+        // Now we pass the data to the gpu
+
+        // puts("Dispatching compute shader");
+        // puts("[INFO] Creating the gpu chunk buffer");
+        // printf("%u\n", serialized_scene.chunks_data_size);
+
+        // Create and initialize buffer object for chunk data
+        GLuint gpu_chunk_buffer;
+        glGenBuffers(1, &gpu_chunk_buffer);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, gpu_chunk_buffer);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, 1728 * sizeof(GPUChunk), serialized_scene.gpu_chunks, GL_DYNAMIC_DRAW);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gpu_chunk_buffer);
+
+        // puts("[INFO] Creating the chunk buffer");
+
+        GLuint chunk_buffer;
+        glGenBuffers(1, &chunk_buffer);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, chunk_buffer);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, serialized_scene.chunks_data_size * sizeof(unsigned int), serialized_scene.chunks_data, GL_DYNAMIC_DRAW);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, chunk_buffer);
     }
 
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    glDrawElementsInstanced(GL_TRIANGLES, model->indicies_count, GL_UNSIGNED_INT, 0, instanceCount);
+    glUniform3fv(glGetUniformLocation(active_render->shader, "cameraPos"), 1, camera->position);
+    glUniformMatrix4fv(glGetUniformLocation(active_render->shader, "projection"), 1, GL_FALSE, &camera->projection[0][0]);
+    glUniformMatrix4fv(glGetUniformLocation(active_render->shader, "view"), 1, GL_FALSE, &camera->view[0][0]);
 
-    glBindVertexArray(0);
+    glEndQuery(GL_TIME_ELAPSED);
+    GLuint64 timeElapsed;
+    glGetQueryObjectui64v(queries[0], GL_QUERY_RESULT, &timeElapsed);
+    printf("Time taken before render: %f ms\n", timeElapsed / 1000000.0);
+
+    glGenQueries(2, queries);
+    glBeginQuery(GL_TIME_ELAPSED, queries[0]);
+
+    // Dispatch compute shader with appropriate work group count
+    glDispatchCompute(width / 48, height / 32, 1);
+
+    // Synchronize compute shader
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+    // puts("Chunk data computed");
+
+    // Clean up
+    // glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    // glDeleteBuffers(1, &gpu_chunk_buffer);
+    // glDeleteBuffers(1, &chunk_buffer);
+
+    // free(serialized_scene.chunks_data);
+    // free(serialized_scene.gpu_chunks);
+
+    glEndQuery(GL_TIME_ELAPSED);
+    glGetQueryObjectui64v(queries[0], GL_QUERY_RESULT, &timeElapsed);
+    printf("Time taken: %f ms\n", timeElapsed / 1000000.0);
 }
 
 static void RenderBegin(Window *window, Camera *camera)
@@ -121,8 +169,8 @@ static void RenderBegin(Window *window, Camera *camera)
 
     glEnable(GL_DEPTH_TEST);
 
-    glUniformMatrix4fv(glGetUniformLocation(window->render->shader, "projection"), 1, GL_FALSE, &camera->projection[0][0]);
-    glUniformMatrix4fv(glGetUniformLocation(window->render->shader, "view"), 1, GL_FALSE, &camera->view[0][0]);
+    // glUniformMatrix4fv(glGetUniformLocation(window->render->shader, "projection"), 1, GL_FALSE, &camera->projection[0][0]);
+    // glUniformMatrix4fv(glGetUniformLocation(window->render->shader, "view"), 1, GL_FALSE, &camera->view[0][0]);
 
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -181,4 +229,4 @@ static void Destroy(WindowRender *render)
     return;
 }
 
-struct AWindowRender AWindowRender[1] = {{Init, Destroy, RenderInitMesh, RenderMesh, BatchRenderMesh, RenderBegin, RenderEnd, RenderLight}};
+struct AWindowRender AWindowRender[1] = {{Init, Destroy, RenderScreenInit, RenderScreen, RenderSceneChunks, RenderBegin, RenderEnd, RenderLight}};

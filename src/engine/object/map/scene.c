@@ -14,6 +14,13 @@
 #include "../../util/util.h"
 #include "scene.h"
 #include "../object.h"
+#include "../chunk/chunk.h"
+#include <SDL.h>
+
+#define MAX_WORLD_X_SIZE 12
+#define MAX_WORLD_Y_SIZE 12
+#define MAX_WORLD_Z_SIZE 12
+#define MAX_WORLD_SIZE MAX_WORLD_X_SIZE *MAX_WORLD_Y_SIZE *MAX_WORLD_Z_SIZE
 
 static Scene *Init()
 {
@@ -30,61 +37,31 @@ static Scene *Init()
 
 static void Delete(Scene *scene)
 {
-    // for (int i = 0; i < scene->objects_size; i++)
-    // {
-    //     AObject.Delete(scene->objects[i]);
-    // }
-
-    // free(scene->objects);
-    // free(scene);
+    return;
 }
 
 static void Update(Scene *scene)
 {
-    // for (int i = 0; i < scene->objects_size; i++)
-    // {
-    //     AObject.Update(scene->objects[i]);
-    // }
+    return;
 }
 
+// Object is just multiple voxels grouped together, that we can apply gravity forces to
 static void AddObject(Scene *scene, Object *object)
 {
-    if (!scene || !object)
-    {
-        return;
-    }
-
-    for (int i = 0; i < scene->objects_list_size; i++)
-    {
-        // Compare model->verticies and indicies to see if they are the same
-        // for (int v = 0; v < scene->objects_list[i]->object[0]->renderer->model->verticies_count; v++)
-        // {
-
-        // }
-
-        if (scene->objects_list[i]->object[0]->renderer->model->verticies_count == object->renderer->model->verticies_count)
-        {
-            printf("Object with model, already exists in scene, adding to array\n");
-
-            scene->objects_list[i]->object = realloc(scene->objects_list[i]->object, sizeof(Object *) * (scene->objects_list[i]->object_size + 1));
-            scene->objects_list[i]->object[scene->objects_list[i]->object_size] = object;
-            scene->objects_list[i]->object_size++;
-
-            return;
-        }
-    }
-
-    puts("Object with model, doesn't exist in scene, creating new array\n");
-
-    ObjectList *object_list = malloc(sizeof(ObjectList));
-    object_list->object = malloc(sizeof(Object *));
-    object_list->object[0] = object;
-    object_list->object_size = 1;
-
-    scene->objects_list = realloc(scene->objects_list, sizeof(ObjectList *) * (scene->objects_list_size + 1));
-    scene->objects_list[scene->objects_list_size] = object_list;
-    scene->objects_list_size++;
+    return;
 }
+
+static void AddChunk(Scene *scene, Chunk *chunk)
+{
+    scene->chunks = realloc(scene->chunks, sizeof(Chunk *) * (scene->chunks_size + 1));
+    scene->chunks[scene->chunks_size] = chunk;
+    scene->chunks_size++;
+}
+
+// Voxel is the smallest object in the engine, the whole world is made out of voxels
+// Voxel has its own position defined with index, which specifies in which position inside a chunk it exists
+// Adding a voxel to scene means dynamically changing the size of the chunks defined in a scene so we can add voxels to the specified position
+// if there is no chunk, x, y and z coordinates correspond to the world position of chunks
 
 static void AddCamera(Scene *scene, Camera *camera)
 {
@@ -95,21 +72,110 @@ static void AddCamera(Scene *scene, Camera *camera)
 
     scene->cameras = realloc(scene->cameras, sizeof(Camera *) * (scene->cameras_size + 1));
     if (!scene->cameras)
-    {
-        ERROR_EXIT("Couldn't allocate memory for scene cameras!\n");
-    }
+        ERROR_EXIT("[ERROR] Couldn't allocate memory for scene cameras!\n");
+
     scene->cameras[scene->cameras_size] = camera;
     scene->cameras_size++;
 }
 
-static void Render(Scene *scene)
+static void Render(Scene *scene, Camera *camera, int width, int height)
 {
-    for (int i = 0; i < scene->objects_list_size; i++)
-    {
-        AObject.BatchRender(scene->objects_list[i], scene->objects_list[i]->object_size);
-    }
+    AWindowRender->RenderSceneChunks(scene, camera, width, height);
 }
 
+static int SerializeThreadFunc(void *data)
+{
+    AChunk.Serialize(data);
+    return 0;
+}
+
+static SerializedScene SerializeChunks(Scene *scene)
+{
+    // If chunk size is 0, we don't need to serialize anything
+    if (!scene || scene->chunks_size == 0)
+        return (SerializedScene){0};
+
+    // Create all needed buffers for storage and threads
+    SDL_Thread **threads = malloc(scene->chunks_size * sizeof(SDL_Thread *));
+    GPUChunk *gpu_chunks = malloc(MAX_WORLD_SIZE * sizeof(GPUChunk));
+    GPUChunk default_chunk = {0, 0, 0, (unsigned int)false};
+    for (int i = 0; i < MAX_WORLD_SIZE; ++i)
+    {
+        gpu_chunks[i] = default_chunk;
+    }
+    SerializedChunk *serialized_chunks = malloc(scene->chunks_size * sizeof(SerializedChunk));
+
+    if (!threads || !serialized_chunks || !gpu_chunks)
+        ERROR_EXIT("Failed to allocate memory for scene serialization!\n");
+
+    // Create threads to process each chunk
+    for (int i = 0; i < scene->chunks_size; i++)
+    {
+        struct ThreadData
+        {
+            Chunk *chunk;
+            SerializedChunk *result;
+        } *data = malloc(sizeof(struct ThreadData));
+
+        data->chunk = scene->chunks[i];
+        data->result = &serialized_chunks[i];
+
+        threads[i] = SDL_CreateThread(SerializeThreadFunc, "Chunk Serialize", data);
+        if (!threads[i])
+            ERROR_EXIT("Failed to create chunk serialize thread!\n");
+
+        // puts("[INFO] Created a thread.");
+    }
+
+    // puts("[INFO] Waiting for all threads to finish");
+
+    // Wait for all threads to finish and calculate total size
+    unsigned int totalSize = 0;
+    for (int i = 0; i < scene->chunks_size; i++)
+    {
+        int threadResult = 0;
+        SDL_WaitThread(threads[i], &threadResult);
+
+        // Create the gpu chunk
+        unsigned int x = (scene->chunks[i]->position >> 20) & 0x3FF;
+        unsigned int y = (scene->chunks[i]->position >> 10) & 0x3FF;
+        unsigned int z = scene->chunks[i]->position & 0x3FF;
+        unsigned int index = x + y * 12 + z * 12 * 12;
+        gpu_chunks[index] = (GPUChunk){scene->chunks[i]->position, totalSize, serialized_chunks[i].size, (unsigned int)true};
+
+        // Add the size to the overall size
+        totalSize += serialized_chunks[i].size;
+    }
+
+    // printf("[INFO] Combining results, combined size %i, in bytes %i\n", totalSize, totalSize * sizeof(unsigned int));
+
+    // Combine all results into a single buffer
+    unsigned int *combined_data = malloc(totalSize * sizeof(unsigned int));
+    unsigned int *current_position = combined_data;
+
+    for (int i = 0; i < scene->chunks_size; i++)
+    {
+        memcpy(current_position, serialized_chunks[i].data, serialized_chunks[i].size * sizeof(unsigned int));
+        // for (int j = 0; j < serialized_chunks[i].size; j++)
+        // {
+        //     AOctree.print_binary(combined_data[j]);
+        //     printf("\n");
+        // }
+        // printf("\n");
+        current_position += serialized_chunks[i].size;
+        free(serialized_chunks[i].data); // Free each chunk's data after copying
+    }
+
+    // puts("[DEBUG] Combining successful");
+
+    free(threads);
+    free(serialized_chunks);
+
+    return (SerializedScene){combined_data, totalSize, gpu_chunks};
+}
+
+// Call write to file function on all chunks
+// Save cameras
 static void WriteToFile(Scene *scene, const char *file)
 {
     // FILE *out = fopen(file, "wb");
@@ -169,14 +235,15 @@ static void ReadFile(Scene *scene, const char *file)
     // fclose(in);
 }
 
-struct AScene AScene[1] =
-    {{
-        Init,
-        Delete,
-        Update,
-        AddObject,
-        AddCamera,
-        Render,
-        WriteToFile,
-        ReadFile,
-    }};
+struct AScene AScene =
+    {
+        .Init = Init,
+        .Delete = Delete,
+        .Update = Update,
+        .AddCamera = AddCamera,
+        .AddChunk = AddChunk,
+        .Render = Render,
+        .SerializeChunks = SerializeChunks,
+        .WriteToFile = WriteToFile,
+        .ReadFile = ReadFile,
+};

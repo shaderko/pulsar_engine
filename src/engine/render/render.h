@@ -17,6 +17,8 @@
 #include <linmath.h>
 #include "../object/model/model.h"
 
+typedef struct Scene Scene;
+
 typedef struct Camera Camera;
 
 typedef struct Window Window;
@@ -25,6 +27,10 @@ typedef struct WindowRender WindowRender;
 struct WindowRender
 {
     int32_t shader;
+    int32_t shader_screen;
+
+    uint32_t screen_vao;
+    uint32_t screen_vbo;
 
     // We only use mesh
     uint32_t vao;
@@ -37,9 +43,9 @@ struct AWindowRender
     WindowRender *(*Init)();
     void (*Destroy)(WindowRender *render);
 
-    void (*RenderInitMesh)(WindowRender *render);
-    void (*RenderMesh)(Model *model, mat4x4 transform);
-    void (*BatchRenderMesh)(Model *model, GLuint vbo, size_t instanceCount);
+    void (*RenderScreenInit)();
+    void (*RenderScreen)(Camera *camera);
+    void (*RenderSceneChunks)(Scene *scene, Camera *camera, int width, int height);
 
     // Render
     void (*RenderBegin)(Window *window, Camera *camera);

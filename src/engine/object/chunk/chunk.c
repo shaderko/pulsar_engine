@@ -10,55 +10,57 @@
  */
 
 #include "chunk.h"
-#include "./voxel/voxel.h"
+#include "../../util/util.h"
+#include "../model/model.h"
+#include "../../render/render.h"
+#include "octree/octree.h"
 
-#define OBJECT_CAPACITY 1024
+#define X_MASK (0xA << 20)
+#define Y_MASK (0xA << 10)
+#define Z_MASK (0xA)
 
-static Chunk *Init(unsigned int x, unsigned int y, unsigned int z)
+static Chunk *Init(vec3 position)
 {
     Chunk *chunk = malloc(sizeof(Chunk));
     if (!chunk)
         ERROR_EXIT("[Error] Failed to allocate chunk.\n");
 
-    memset(chunk, 0, sizeof(Chunk));
+    // Transfer vec3 position to single unsigned int with bit manipulation
+    chunk->position = (unsigned int)position[0] << 20 | (unsigned int)position[1] << 10 | (unsigned int)position[2];
 
-    chunk->x = x;
-    chunk->y = y;
-    chunk->z = z;
-
-    chunk->valid = true;
+    // Initialize an octree for this chunk
+    chunk->voxel_tree = AOctree.Init();
 
     return chunk;
 }
 
-static void Add(Chunk *chunk, Voxel *voxel)
+static void Add(Chunk *chunk, unsigned int x, unsigned int y, unsigned int z, unsigned char color, unsigned int uvs)
 {
-    if (!chunk || !voxel)
-        puts("[Error] Chunk couldn't be updated because either chunk or voxel is NULL.\n");
-
-    if (chunk->size >= OBJECT_CAPACITY)
-        puts("[Error] Chunk is full!\n");
-
-    chunk->voxels = realloc(chunk->voxels, sizeof(Voxel) * (chunk->size + 1));
-    if (!chunk->voxels)
-        ERROR_EXIT("[Error] Failed to reallocate memory for chunk.\n");
-
-    memcpy(chunk->objects[chunk->size], voxel, sizeof(Voxel));
-
-    return;
+    // Add data to octree
+    AOctree.Add(chunk->voxel_tree, x, y, z, color, uvs);
 }
 
-static void Render(Chunk *chunk)
+static void Serialize(void *data)
 {
-    if (!chunk)
-        puts("[Error] Chunk couldn't be rendered because chunk is NULL.\n");
+    struct ThreadData
+    {
+        Chunk *chunk;
+        SerializedChunk *result;
+    } *thread_data = data;
 
-    if (!chunk->valid)
-        puts("[Info] Chunk couldn't be rendered because chunk is invalid.\n");
+    thread_data->result->data = NULL;
+    thread_data->result->size = 0;
+
+    if (!thread_data->chunk || !thread_data->chunk->voxel_tree)
+        ERROR_RETURN(NULL, "[INFO] Chunk has no data to serialize.");
+
+    // Linearize octree of the chunk
+    AOctree.LinearizeOctree(thread_data->chunk->voxel_tree->root, &thread_data->result->data, &thread_data->result->size);
 }
 
 extern struct AChunk AChunk;
 struct AChunk AChunk =
     {
         .Init = Init,
-        .Add = Add};
+        .Add = Add,
+        .Serialize = Serialize};

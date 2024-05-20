@@ -147,7 +147,7 @@ target_link_libraries(cimgui_sdl ${IMGUI_LIBRARIES} ${IMGUI_SDL_LIBRARY})
 set(RENDER src/engine/render/render.c src/engine/render/render_init.c)
 set(CAMERA src/engine/camera/camera.c)
 set(IO src/engine/io/io.c)
-set(OBJECT src/engine/object/collider/collider.c src/engine/object/collider/box_collider.c src/engine/object/renderer/renderer.c src/engine/object/object.c src/engine/object/model/model.c)
+set(OBJECT src/engine/object/collider/collider.c src/engine/object/collider/box_collider.c src/engine/object/renderer/renderer.c src/engine/object/object.c src/engine/object/model/model.c src/engine/object/chunk/chunk.c src/engine/object/chunk/octree/octree.c)
 set(NETWORKING src/engine/network/server/server.c src/engine/network/client/client.c src/engine/network/room/room.c src/engine/network/network/network.c)
 set(SCENE src/engine/object/map/scene.c)
 set(CONFIG src/engine/common/config/config.c)
@@ -166,12 +166,12 @@ include_directories(deps/include)
 include_directories(externals/cimgui/generator/output/)
 add_executable(pulsar_engine ${FILES})
 target_compile_definitions(pulsar_engine PUBLIC -DCIMGUI_USE_OPENGL3 -DCIMGUI_USE_SDL2)
+
 if(WIN32)
     target_link_libraries(pulsar_engine ${IMGUI_SDL_LIBRARY} cimgui_sdl uv Ws2_32 Iphlpapi OpenGL32)
 else()
     target_link_libraries(pulsar_engine ${IMGUI_SDL_LIBRARY} cimgui_sdl uv ${OPENGL_LIBRARY})
 endif()
-
 
 if(MINGW)
     target_link_options(pulsar_engine PRIVATE "-mconsole")
@@ -185,11 +185,11 @@ add_custom_command(TARGET pulsar_engine POST_BUILD
     "${SDL2_DLL_PATH}"
     $<TARGET_FILE_DIR:pulsar_engine>)
 
-if (WIN32)
-add_custom_command(TARGET pulsar_engine POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${CMAKE_BINARY_DIR}/libuv-build/Debug/uv.dll"
-    $<TARGET_FILE_DIR:pulsar_engine>)
+if(WIN32)
+    add_custom_command(TARGET pulsar_engine POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_BINARY_DIR}/libuv-build/Debug/uv.dll"
+        $<TARGET_FILE_DIR:pulsar_engine>)
 endif()
 
 add_custom_command(TARGET pulsar_engine POST_BUILD

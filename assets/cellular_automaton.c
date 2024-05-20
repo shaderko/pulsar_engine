@@ -1,5 +1,4 @@
 #include "cellular_automaton.h"
-#include "../src/engine/object/object.h"
 #include "../src/engine/util/util.h"
 
 #include <stdint.h>
@@ -13,9 +12,9 @@
 #define GET_BYTE_INDEX(z) ((z / 8))
 #define GET_BIT_INDEX(z) (z % 8)
 
-#define X_SIZE 150
-#define Y_SIZE 150
-#define Z_SIZE 150
+#define X_SIZE 30
+#define Y_SIZE 30
+#define Z_SIZE 30
 
 uint8_t ***grid;
 
@@ -206,7 +205,7 @@ Scene *StartCellularAutomaton()
     }
 
     // Create a scene
-    Scene *scene = AScene->Init(&(vec3){1, 1, 1});
+    Scene *scene = AScene.Init(&(vec3){1, 1, 1});
 
     // Create objects for the grid
     for (int x = 0; x < X_SIZE; x++)
@@ -217,8 +216,12 @@ Scene *StartCellularAutomaton()
             {
                 if (CHECK_BIT(grid[x][y][GET_BYTE_INDEX(z)], GET_BIT_INDEX(z)))
                 {
-                    printf("Cell at (%d, %d, %d) is alive.\n", x, y, z);
-                    Object *o = AObject.InitBox((vec3){x * 2, y * 2, z * 2}, (vec3){0, 0, 0}, (vec3){1, 1, 1});
+                    // printf("Cell at (%d, %d, %d) is alive.\n", x, y, z);
+
+                    // Voxel *voxel = AVoxel.Init(x % 8, y % 8, z % 8);
+                    // AScene.AddVoxel(scene, voxel, x / 8, y / 8, z / 8);
+
+                    // Object *o = AObject.InitBox((vec3){x * 2, y * 2, z * 2}, (vec3){0, 0, 0}, (vec3){1, 1, 1});
                     // AScene->Add(scene, o);
                 }
             }

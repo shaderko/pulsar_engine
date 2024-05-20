@@ -71,13 +71,13 @@ static void Render(Renderer *renderer, mat4x4 transform)
     // Adjust the position to be relative to world space by adding the position of the renderer to the position of the object
     // mat4x4_add(world_position, transform, renderer->transform);
 
-    AWindowRender->RenderMesh(renderer->model, transform); // renderer->rotation, renderer->scale TODO:
+    // AWindowRender->RenderMesh(renderer->model, transform); // renderer->rotation, renderer->scale TODO:
 }
 
 static void BatchRender(Model *model, GLuint vbo, size_t size)
 {
     // Batch render the models
-    AWindowRender->BatchRenderMesh(model, vbo, size);
+    // AWindowRender->BatchRenderMesh(model, vbo, size);
 }
 
 /**

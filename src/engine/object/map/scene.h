@@ -14,15 +14,8 @@
 
 #include <linmath.h>
 
-#include "../object.h"
 #include "../../camera/camera.h"
-
-typedef struct ObjectList ObjectList;
-struct ObjectList
-{
-    Object **object;
-    int object_size;
-};
+#include "../chunk/chunk.h"
 
 typedef struct Scene Scene;
 struct Scene
@@ -31,10 +24,21 @@ struct Scene
     size_t cameras_size;
 
     /**
-     * Array of objects in a scene
+     * Array of chunks in a scene
      */
-    ObjectList **objects_list;
-    int objects_list_size;
+    Chunk **chunks;
+    size_t chunks_size;
+
+    size_t chunks_count;
+};
+
+typedef struct SerializedScene SerializedScene;
+struct SerializedScene
+{
+    unsigned int *chunks_data;
+    unsigned int chunks_data_size;
+
+    GPUChunk *gpu_chunks;
 };
 
 struct AScene
@@ -53,11 +57,15 @@ struct AScene
     /**
      * Adds an object to a scene
      */
-    void (*AddObject)(Scene *scene, Object *object);
+    // void (*AddObject)(Scene *scene, Object *object);
 
     void (*AddCamera)(Scene *scene, Camera *camera);
 
-    void (*Render)(Scene *scene);
+    void (*AddChunk)(Scene *scene, Chunk *chunk);
+
+    void (*Render)(Scene *scene, Camera *camera, int width, int height);
+
+    SerializedScene (*SerializeChunks)(Scene *scene);
 
     /**
      * Writes scene objects to a file
@@ -70,6 +78,6 @@ struct AScene
     void (*ReadFile)(Scene *scene, const char *file);
 };
 
-extern struct AScene AScene[1];
+extern struct AScene AScene;
 
 #endif

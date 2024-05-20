@@ -5,6 +5,6 @@ layout (location = 1) in vec2 texCoords;
 out vec2 TexCoords;
 
 void main() {
-    gl_Position = vec4(position, 0.0f, 1.0f);
+    gl_Position = vec4(vec2(position.xy), 0.0, 1.0);
     TexCoords = texCoords;
 }

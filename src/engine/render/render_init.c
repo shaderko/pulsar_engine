@@ -16,23 +16,39 @@
 
 void render_init_shaders(WindowRender *render)
 {
-    render->shader = render_shader_create_name("./shaders/default");
-    // state->shader_screen = render_shader_create_name("./shaders/screen");
+    render->shader = render_shader_create_comp("./shaders/voxel");
+    render->shader_screen = render_shader_create_frag_vert("./shaders/screen");
 
+    // By default use the comp shader
     glUseProgram(render->shader);
+
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_DEPTH_CLAMP);
 }
 
-u32 render_shader_create(const char *path_vert, const char *path_frag)
+u32 render_shader_create_frag_vert(const char *path)
 {
+    // Create path
+    size_t len = strlen(path);
+
+    char *vertex_shader_path = malloc(len + 6);
+    memset(vertex_shader_path, 0, len + 6);
+    strcat(vertex_shader_path, path);
+    strcat(vertex_shader_path, ".vert");
+
+    char *fragment_shader_path = malloc(len + 6);
+    memset(fragment_shader_path, 0, len + 6);
+    strcat(fragment_shader_path, path);
+    strcat(fragment_shader_path, ".frag");
+
+    // Create shaders
     int success;
     char log[512];
 
-    File file_vertex = io_file_read(path_vert);
+    File file_vertex = io_file_read(vertex_shader_path);
     if (!file_vertex.is_valid)
     {
-        ERROR_EXIT("error reading shader: %s\n", path_vert);
+        ERROR_EXIT("error reading shader: %s\n", vertex_shader_path);
     }
 
     u32 shader_vertex = glCreateShader(GL_VERTEX_SHADER);
@@ -45,10 +61,10 @@ u32 render_shader_create(const char *path_vert, const char *path_frag)
         ERROR_EXIT("error compiling vertex shader. %s\n", log);
     }
 
-    File file_fragment = io_file_read(path_frag);
+    File file_fragment = io_file_read(fragment_shader_path);
     if (!file_fragment.is_valid)
     {
-        ERROR_EXIT("error reading shader: %s\n", path_frag);
+        ERROR_EXIT("error reading shader: %s\n", fragment_shader_path);
     }
 
     u32 shader_fragment = glCreateShader(GL_FRAGMENT_SHADER);
@@ -75,29 +91,55 @@ u32 render_shader_create(const char *path_vert, const char *path_frag)
     free(file_vertex.data);
     free(file_fragment.data);
 
+    free(vertex_shader_path);
+    free(fragment_shader_path);
+
     return shader;
 }
 
-// Path to the file without extension with file name.
-// This function will create shaders for path.vert, path.frag using render_shader_create()
-u32 render_shader_create_name(char *path)
+u32 render_shader_create_comp(const char *path)
 {
+    // Create path
     size_t len = strlen(path);
 
-    char *vertex_shader = malloc(len + 6);
-    memset(vertex_shader, 0, len + 6);
-    strcat(vertex_shader, path);
-    strcat(vertex_shader, ".vert");
+    char *compute_shader_path = malloc(len + 6);
+    memset(compute_shader_path, 0, len + 6);
+    strcat(compute_shader_path, path);
+    strcat(compute_shader_path, ".comp");
 
-    char *fragment_shader = malloc(len + 6);
-    memset(fragment_shader, 0, len + 6);
-    strcat(fragment_shader, path);
-    strcat(fragment_shader, ".frag");
+    // Create the shader
+    int success;
+    char log[512];
 
-    u32 result = render_shader_create(vertex_shader, fragment_shader);
+    File file_compute = io_file_read(compute_shader_path);
+    if (!file_compute.is_valid)
+    {
+        ERROR_EXIT("error reading shader: %s\n", compute_shader_path);
+    }
 
-    free(vertex_shader);
-    free(fragment_shader);
+    u32 shader_compute = glCreateShader(GL_COMPUTE_SHADER);
+    glShaderSource(shader_compute, 1, (const char *const *)&file_compute, NULL);
+    glCompileShader(shader_compute);
+    glGetShaderiv(shader_compute, GL_COMPILE_STATUS, &success);
+    if (!success)
+    {
+        glGetShaderInfoLog(shader_compute, 512, NULL, log);
+        ERROR_EXIT("error compiling compute shader. %s\n", log);
+    }
 
-    return result;
+    u32 shader = glCreateProgram();
+    glAttachShader(shader, shader_compute);
+    glLinkProgram(shader);
+    glGetProgramiv(shader, GL_LINK_STATUS, &success);
+    if (!success)
+    {
+        glGetProgramInfoLog(shader, 512, NULL, log);
+        ERROR_EXIT("error linking shader. %s\n", log);
+    }
+
+    free(file_compute.data);
+
+    free(compute_shader_path);
+
+    return shader;
 }

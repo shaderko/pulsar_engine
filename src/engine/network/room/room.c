@@ -91,8 +91,8 @@ static int RoomGame(void *room_init)
     Room *room = (Room *)room_init;
     printf("Loading map for room %lld\n", room->room_id);
 
-    room->scene = AScene->Init(&((vec3){0, 0, 0}));
-    AScene->ReadFile(room->scene, "file2");
+    room->scene = AScene.Init(&((vec3){0, 0, 0}));
+    AScene.ReadFile(room->scene, "file2");
 
     printf("Map loaded, starting main loop\n");
 
@@ -104,7 +104,7 @@ static int RoomGame(void *room_init)
         ARoom->ProcessData(room);
 
         // Do all the game stuff
-        AScene->Update(room->scene);
+        AScene.Update(room->scene);
 
         // Send game objects
         ARoom->SendData(room);
@@ -160,7 +160,7 @@ static void ProcessData(Room *room)
         object->renderer.derived.data = malloc(object->renderer.derived.len);
         memcpy(object->renderer.derived.data, message->data + sizeof(SerializedObject) + object->collider.derived.len, object->renderer.derived.len);
 
-        AScene->AddObject(room->scene, AObject.Deserialize(object, room->scene));
+        // AScene.AddObject(room->scene, AObject.Deserialize(object, room->scene));
 
         free(object->collider.derived.data);
         free(object->renderer.derived.data);

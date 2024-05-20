@@ -12,7 +12,9 @@
 #include <glad/glad.h>
 #include <SDL.h>
 #include <stdio.h>
+#include <linmath.h>
 #include "window.h"
+#include "../util/util.h"
 
 static Window *Init(int width, int height, char *title)
 {
@@ -30,12 +32,11 @@ static Window *Init(int width, int height, char *title)
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG); // Always required on Mac
 #else
-    puts("Using OpenGL 3.0 Core and GLSL 130");
-    // GL 3.0 + GLSL 130
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+    puts("Using OpenGL 4.6 Core and GLSL 460");
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    // SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
 #endif
 
     // and prepare OpenGL stuff
@@ -74,6 +75,7 @@ static Window *Init(int width, int height, char *title)
     }
 
     puts("openGL loaded");
+    printf("OpenGL %d.%d\n", GLVersion.major, GLVersion.minor);
     printf("vendor:        %s\n", glGetString(GL_VENDOR));
     printf("renderer:      %s\n", glGetString(GL_RENDERER));
     printf("version:       %s\n", glGetString(GL_VERSION));
@@ -112,4 +114,85 @@ static void Destroy(Window *window)
     }
 }
 
-struct AWindow AWindow[1] = {{Init, Destroy}};
+static float radius = 50.0f;
+
+static void Render(Window *window)
+{
+    if (!window || !window->camera)
+        ERROR_RETURN(NULL, "[ERROR] Window is NULL.");
+
+    static int lastX = 0, lastY = 0; // Static variables to remember the last position
+    int x, y;
+    SDL_GetMouseState(&x, &y);
+    // if (editor->btn_pressed)
+    {
+        static float theta = 0;      // Azimuthal angle in radians
+        static float phi = M_PI / 4; // Polar angle in radians (start with a 45-degree angle for elevation)
+
+        int deltaX = x - lastX;
+        int deltaY = y - lastY;
+
+        lastX = x;
+        lastY = y;
+
+        float sensitivity = 0.005f; // Adjust this value to control the speed of the rotation
+        theta += deltaX * sensitivity;
+        phi += deltaY * sensitivity; // Subtracting so that dragging up moves the camera up
+
+        // Clamp phi to prevent the camera from flipping over at the poles
+        phi = fmax(0.1f, fmin(M_PI - 0.1f, phi));
+
+        window->camera->position[0] = (radius * sin(phi) * cos(theta)) + window->camera->center[0];
+        window->camera->position[1] = (radius * cos(phi)) + window->camera->center[1];
+        window->camera->position[2] = (radius * sin(phi) * sin(theta)) + window->camera->center[2];
+    }
+    // Calculate the forward direction vector
+    vec3 forward;
+    vec3_sub(forward, window->camera->center, window->camera->eye);
+    vec3_norm(forward, forward); // Normalize the forward vector
+
+    // Calculate the right direction vector
+    vec3 right;
+    vec3_mul_cross(right, forward, window->camera->up);
+    vec3_norm(right, right); // Normalize the right vector
+
+    // Movement speed
+    float speed = 0.1f;
+
+    // Update camera position based on input
+    // if (editor->w_pressed)
+    // {
+    //     // Move forward
+    //     vec3_scale(forward, forward, speed);
+    //     vec3_add(window->camera->eye, window->camera->eye, forward);
+    //     vec3_add(window->camera->center, window->camera->center, forward);
+    // }
+    // else if (editor->s_pressed)
+    // {
+    //     // Move backward
+    //     vec3_scale(forward, forward, -speed);
+    //     vec3_add(window->camera->eye, window->camera->eye, forward);
+    //     vec3_add(window->camera->center, window->camera->center, forward);
+    // }
+    // else if (editor->a_pressed)
+    // {
+    //     // Move left
+    //     vec3_scale(right, right, -speed);
+    //     vec3_add(window->camera->eye, window->camera->eye, right);
+    //     vec3_add(window->camera->center, window->camera->center, right);
+    // }
+    // else if (editor->d_pressed)
+    // {
+    //     // Move right
+    //     vec3_scale(right, right, speed);
+    //     vec3_add(window->camera->eye, window->camera->eye, right);
+    //     vec3_add(window->camera->center, window->camera->center, right);
+    // }
+
+    ACamera->Render(window->camera, window, window->width, window->height, window->scene);
+
+    AWindowRender->RenderScreen(window->camera);
+    AWindowRender->RenderEnd(window);
+}
+
+struct AWindow AWindow[1] = {{Init, Destroy, Render}};

@@ -31,17 +31,28 @@ struct Camera
     vec3 eye;
     vec3 up;
 
-    GLuint color;
-    GLuint depth;
+    // Used by the window to show the rendered image
+    GLuint image_out;
     GLuint fbo;
+
+    // Save last render size
+    int last_width;
+    int last_height;
 };
 
 struct ACamera
 {
+    // Initialize Ortographic view camera
     Camera *(*InitOrtho)(float left, float right, float bottom, float top, float near, float far);
+
+    // Initialize Perspective view camera
     Camera *(*InitPerspective)(float fov, float aspect, float near, float far);
+
+    // Update camera view matrix, call each time the camera moves
     void (*UpdateView)(Camera *camera);
-    void (*Render)(Camera *camera, Window *window, float width, float height, Scene *scene);
+
+    // Render the camera view
+    void (*Render)(Camera *camera, Window *window, int width, int height, Scene *scene);
 };
 
 extern struct ACamera ACamera[1];

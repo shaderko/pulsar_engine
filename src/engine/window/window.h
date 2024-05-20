@@ -16,39 +16,49 @@
 #include <SDL.h>
 #include "../util/util.h"
 #include "../render/render.h"
+#include "../camera/camera.h"
+#include "../object/map/scene.h"
 
 typedef struct Window Window;
 struct Window
 {
+    // Window size
     int width;
     int height;
 
-    /**
-     * @brief SDL window pointer
-     */
+    // SDL pointers
     SDL_Window *sdl_window;
     SDL_Renderer *renderer;
     SDL_GLContext context;
 
+    // Camera the window will render from
+    Camera *camera;
+
+    // Scene the window will render
+    Scene *scene;
+
+    // Window renderer
     WindowRender *render;
 };
 
 struct AWindow
 {
     /**
-     * @brief Initializes a new window
+     * Initializes a new window
      *
      * @param width Width of the window
      * @param height Height of the window
      * @param title Title of the window
+     *
      * @return Window* Pointer to the window
      */
     Window *(*Init)(int width, int height, char *title);
 
-    /**
-     * @brief Destroys a window
-     */
+    // Destroys the window
     void (*Destroy)(Window *window);
+
+    // Render the window's contents
+    void (*Render)(Window *window);
 };
 
 extern struct AWindow AWindow[1];

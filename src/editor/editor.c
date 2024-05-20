@@ -60,7 +60,7 @@ static Editor *Init()
     igStyleColorsDark(NULL);
 
     ImGui_ImplSDL2_InitForOpenGL(editor->window->sdl_window, editor->window->context);
-    const char *glsl_version = "#version 410";
+    const char *glsl_version = "#version 430";
     ImGui_ImplOpenGL3_Init(glsl_version);
 
     return editor;
@@ -161,6 +161,9 @@ static void UpdateContext(Editor *editor, SDL_Event *event)
 static void Render(Editor *editor)
 {
     SDL_GL_MakeCurrent(editor->window->sdl_window, editor->window->context);
+    // Uint64 start, end;
+    // double deltaTime;
+    // start = SDL_GetPerformanceCounter();
 
     ImGuiIO *ioptr = igGetIO();
 
@@ -170,6 +173,10 @@ static void Render(Editor *editor)
 
     // Enable docking in the main viewport
     igDockSpaceOverViewport(NULL, ImGuiDockNodeFlags_None, NULL);
+
+    // end = SDL_GetPerformanceCounter();
+    // deltaTime = (double)((end - start) * 1000) / SDL_GetPerformanceFrequency();
+    // printf("Frame Time until ig docker in editor: %f ms\n", deltaTime);
 
     if (igBeginMainMenuBar())
     {
@@ -182,11 +189,11 @@ static void Render(Editor *editor)
                 if (!editor->scene)
                 {
                     puts("Creating new scene...");
-                    editor->scene = AScene->Init((vec3){1, 1, 1});
+                    // editor->scene = AScene->Init((vec3){1, 1, 1});
                 }
 
-                Object *box = AObject.InitBox(false, true, 1, (vec3){0, 0, 0}, (vec3){100, 100, 100});
-                AScene->AddObject(editor->scene, box);
+                // Object *box = AObject.InitBox(false, true, 1, (vec3){0, 0, 0}, (vec3){100, 100, 100});
+                // AScene->AddObject(editor->scene, box);
             }
             if (igMenuItem_Bool("Sphere", NULL, false, true))
             {
@@ -204,25 +211,25 @@ static void Render(Editor *editor)
             {
                 puts("Creating new scene...");
 
-                if (!editor->scene)
-                    editor->scene = AScene->Init((vec3){1, 1, 1});
-                else
-                {
-                    AScene->Delete(editor->scene);
-                    editor->scene = AScene->Init((vec3){1, 1, 1});
-                }
+                // if (!editor->scene)
+                // editor->scene = AScene->Init((vec3){1, 1, 1});
+                // else
+                // {
+                // AScene->Delete(editor->scene);
+                // editor->scene = AScene->Init((vec3){1, 1, 1});
+                // }
             }
             if (igMenuItem_Bool("Load", NULL, false, true))
             {
                 puts("Loading scene...");
 
-                if (!editor->scene)
-                {
-                    puts("Creating new scene...");
-                    editor->scene = AScene->Init((vec3){1, 1, 1});
-                }
+                // if (!editor->scene)
+                // {
+                // puts("Creating new scene...");
+                // editor->scene = AScene->Init((vec3){1, 1, 1});
+                // }
 
-                AScene->ReadFile(editor->scene, "scene.bin");
+                // AScene->ReadFile(editor->scene, "scene.bin");
             }
             if (igMenuItem_Bool("Save", NULL, false, true))
             {
@@ -231,7 +238,7 @@ static void Render(Editor *editor)
                     printf("No scene to save!\n");
                     return;
                 }
-                AScene->WriteToFile(editor->scene, "scene.bin");
+                // AScene->WriteToFile(editor->scene, "scene.bin");
             }
             igEndMenu();
         }
@@ -251,19 +258,19 @@ static void Render(Editor *editor)
             if (!editor->scene)
             {
                 puts("Creating new scene...");
-                editor->scene = AScene->Init((vec3){1, 1, 1});
+                // editor->scene = AScene->Init((vec3){1, 1, 1});
             }
 
             static int pos = 0;
 
-            static Model *model1;
-            if (!model1)
-                model1 = AModel->Load("assets/untitled.obj");
+            // static Model *model1;
+            // if (!model1)
+            // model1 = AModel->Load("assets/untitled.obj");
 
             // Object *box = AObject.InitMesh((vec3){1, 1, 1}, (vec3){1, 1, 1}, (vec3){1, 1, 1}, model);
-            Object *box = AObject.InitMesh((vec3){pos * 20, 0, 0}, (vec3){0, 0, 0}, (vec3){10, 10, 10}, model1);
-            pos += 1;
-            AScene->AddObject(editor->scene, box);
+            // Object *box = AObject.InitMesh((vec3){pos * 20, 0, 0}, (vec3){0, 0, 0}, (vec3){10, 10, 10}, model1);
+            // pos += 1;
+            // AScene->AddObject(editor->scene, box);
         }
 
         bool createFiveObjects = igButton("Create 5 objects", (ImVec2){200, 20});
@@ -272,15 +279,15 @@ static void Render(Editor *editor)
             if (!editor->scene)
             {
                 puts("Creating new scene...");
-                editor->scene = AScene->Init((vec3){1, 1, 1});
+                // editor->scene = AScene->Init((vec3){1, 1, 1});
             }
 
             for (int k = 0; k < 5; k++)
             {
-                Model *model2 = AModel->Load("assets/bunny.obj");
+                // Model *model2 = AModel->Load("assets/bunny.obj");
 
-                Object *box = AObject.InitMesh((vec3){k * 1, 1, 1}, (vec3){0, 0, 0}, (vec3){10, 10, 10}, model2);
-                AScene->AddObject(editor->scene, box);
+                // Object *box = AObject.InitMesh((vec3){k * 1, 1, 1}, (vec3){0, 0, 0}, (vec3){10, 10, 10}, model2);
+                // AScene->AddObject(editor->scene, box);
             }
         }
 
@@ -290,7 +297,7 @@ static void Render(Editor *editor)
             if (!editor->scene)
             {
                 puts("Creating new scene...");
-                editor->scene = AScene->Init((vec3){1, 1, 1});
+                // editor->scene = AScene->Init((vec3){1, 1, 1});
             }
 
             for (int i = 0; i < 5; i++)
@@ -299,12 +306,12 @@ static void Render(Editor *editor)
                 {
                     for (int k = 0; k < 5; k++)
                     {
-                        static Model *model;
-                        if (!model)
-                            model = AModel->Load("assets/bunny.obj");
+                        // static Model *model;
+                        // if (!model)
+                        // model = AModel->Load("assets/bunny.obj");
 
-                        Object *box = AObject.InitMesh((vec3){k * 10, j * 10, i * 10}, (vec3){1, 1, 1}, (vec3){10, 10, 10}, model);
-                        AScene->AddObject(editor->scene, box);
+                        // Object *box = AObject.InitMesh((vec3){k * 10, j * 10, i * 10}, (vec3){1, 1, 1}, (vec3){10, 10, 10}, model);
+                        // AScene->AddObject(editor->scene, box);
                     }
                 }
             }
@@ -316,7 +323,7 @@ static void Render(Editor *editor)
             if (!editor->scene)
             {
                 puts("Creating new scene...");
-                editor->scene = AScene->Init((vec3){1, 1, 1});
+                // editor->scene = AScene->Init((vec3){1, 1, 1});
             }
 
             for (int i = 0; i < 25; i++)
@@ -325,21 +332,21 @@ static void Render(Editor *editor)
                 {
                     for (int k = 0; k < 25; k++)
                     {
-                        Object *box = AObject.InitBox((vec3){j * 10, i * 10, k * 10}, (vec3){0, 0, 0}, (vec3){10, 10, 10});
-                        AScene->AddObject(editor->scene, box);
+                        // Object *box = AObject.InitBox((vec3){j * 10, i * 10, k * 10}, (vec3){0, 0, 0}, (vec3){10, 10, 10});
+                        // AScene->AddObject(editor->scene, box);
                     }
                 }
             }
         }
         if (editor->scene)
         {
-            int objects_count = 0;
-            for (int i = 0; i < editor->scene->objects_list_size; i++)
-            {
-                objects_count += editor->scene->objects_list[i]->object_size;
-            }
+            // int objects_count = 0;
+            // for (int i = 0; i < editor->scene->objects_list_size; i++)
+            // {
+            //     objects_count += editor->scene->objects_list[i]->object_size;
+            // }
 
-            igText("Objects: %d", objects_count);
+            // igText("Objects: %d", objects_count);
             // int indicies = 0;
             // for (int i = 0; i < editor->scene->objects_size; i++)
             // {
@@ -367,7 +374,7 @@ static void Render(Editor *editor)
         {
             puts("Creating new camera...");
             Camera *camera = ACamera->InitPerspective(0.78539816339f, (float)1920 / (float)1080, 0.0001f, 100000.0f);
-            AScene->AddCamera(editor->scene, camera);
+            AScene.AddCamera(editor->scene, camera);
         }
 
         igSliderFloat("UP_X", &editor->editor_camera->camera->up[0], 0.0f, 100.0f, "%.1f", 0);
@@ -455,6 +462,10 @@ static void Render(Editor *editor)
         // the camera's eye and center positions along the world's up axis (usually (0, 1, 0) or similar).
     }
 
+    // end = SDL_GetPerformanceCounter();
+    // deltaTime = (double)((end - start) * 1000) / SDL_GetPerformanceFrequency();
+    // printf("Frame Time until camera setup in editor: %f ms\n", deltaTime);
+
     if (editor->editor_camera->camera)
     {
         igBegin("Editor Camera Render", NULL, 0);
@@ -462,19 +473,37 @@ static void Render(Editor *editor)
         ImVec2 windowSize;
         igGetContentRegionAvail(&windowSize);
 
+        GLenum error = glGetError();
+        if (error != GL_NO_ERROR)
+        {
+            fprintf(stderr, "OpenGL Camera Error: %d\n", error);
+        }
+
         ACamera->Render(editor->editor_camera->camera, editor->window, windowSize.x, windowSize.y, editor->scene);
 
-        ImTextureID myTextureID = (ImTextureID)editor->editor_camera->camera->color; // Cast your texture identifier to ImTextureID
-        ImVec2 imageSize = (ImVec2){windowSize.x, windowSize.y};                     // Display the image as 100x100 pixels
-        ImVec2 uv0 = (ImVec2){0, 0};                                                 // Use the whole texture
+        // end = SDL_GetPerformanceCounter();
+        // deltaTime = (double)((end - start) * 1000) / SDL_GetPerformanceFrequency();
+        // printf("Frame Time after camera render but before show image in editor: %f ms\n", deltaTime);
+
+        ImTextureID myTextureID = (ImTextureID)editor->editor_camera->camera->image_out; // Cast your texture identifier to ImTextureID
+        ImVec2 imageSize = (ImVec2){windowSize.x, windowSize.y};                         // Display the image as 100x100 pixels
+        ImVec2 uv0 = (ImVec2){0, 0};                                                     // Use the whole texture
         ImVec2 uv1 = (ImVec2){1, 1};
         ImVec4 tintCol = (ImVec4){1.0f, 1.0f, 1.0f, 1.0f};
         ImVec4 borderCol = (ImVec4){0.0f, 0.0f, 0.0f, 0.0f};
 
         igImage(myTextureID, imageSize, uv0, uv1, tintCol, borderCol);
 
+        // end = SDL_GetPerformanceCounter();
+        // deltaTime = (double)((end - start) * 1000) / SDL_GetPerformanceFrequency();
+        // printf("Frame Time after show image render in editor: %f ms\n", deltaTime);
+
         igEnd();
     }
+
+    // end = SDL_GetPerformanceCounter();
+    // deltaTime = (double)((end - start) * 1000) / SDL_GetPerformanceFrequency();
+    // printf("Frame Time after camera render in editor: %f ms\n", deltaTime);
 
     for (int i = 0; i < editor->scene->cameras_size; i++)
     {
@@ -503,9 +532,9 @@ static void Render(Editor *editor)
         ACamera->UpdateView(camera);
         ACamera->Render(camera, editor->window, windowSize.x, windowSize.y, editor->scene);
 
-        ImTextureID myTextureID = (ImTextureID)camera->color;    // Cast your texture identifier to ImTextureID
-        ImVec2 imageSize = (ImVec2){windowSize.x, windowSize.y}; // Display the image as 100x100 pixels
-        ImVec2 uv0 = (ImVec2){0, 0};                             // Use the whole texture
+        ImTextureID myTextureID = (ImTextureID)camera->image_out; // Cast your texture identifier to ImTextureID
+        ImVec2 imageSize = (ImVec2){windowSize.x, windowSize.y};  // Display the image as 100x100 pixels
+        ImVec2 uv0 = (ImVec2){0, 0};                              // Use the whole texture
         ImVec2 uv1 = (ImVec2){1, 1};
         ImVec4 tintCol = (ImVec4){1.0f, 1.0f, 1.0f, 1.0f};
         ImVec4 borderCol = (ImVec4){0.0f, 0.0f, 0.0f, 0.0f};
@@ -514,6 +543,10 @@ static void Render(Editor *editor)
 
         igEnd();
     }
+
+    // end = SDL_GetPerformanceCounter();
+    // deltaTime = (double)((end - start) * 1000) / SDL_GetPerformanceFrequency();
+    // printf("Frame Time until ig render in editor: %f ms\n", deltaTime);
 
     // render
     igRender();
@@ -532,6 +565,10 @@ static void Render(Editor *editor)
 #endif
 
     SDL_GL_SwapWindow(editor->window->sdl_window);
+
+    // end = SDL_GetPerformanceCounter();
+    // deltaTime = (double)((end - start) * 1000) / SDL_GetPerformanceFrequency();
+    // printf("Frame Time until swap window in editor: %f ms\n", deltaTime);
 }
 
 struct AEditor AEditor[1] = {{Init, UpdateContext, Render}};

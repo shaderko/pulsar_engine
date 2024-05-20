@@ -1,0 +1,913 @@
+#version 450 core
+
+#define VOXEL_SIZE .5
+#define CHUNK_SIZE 64
+#define MAX_CHUNKS 64
+#define OCTREE_SIZE 64
+#define MAX_DEPTH 6
+
+const uint CHILDREN_SIZE_BIT_MASK = 0xFFFFu << 8;
+
+
+// Binding for the output image where voxels will be visualized.
+layout(rgba32f, binding = 0) writeonly uniform image2D outputImage;
+layout(rgba32f, binding = 3) writeonly uniform image2D debugImage;
+layout(rgba32f, binding = 4) writeonly uniform image2D debugImage2;
+
+uniform vec3 cameraPos;
+uniform mat4 view;
+uniform mat4 projection;
+uniform mat4 invProjection;
+uniform mat4 invView;
+uniform int numChunks;
+
+struct GPUChunk {
+    uint position;
+    uint offset;
+    uint size;
+};
+
+layout(std430, binding = 1) buffer gpu_chunk_buffer {
+    GPUChunk gpu_chunk_data[];
+};
+
+layout(std430, binding = 2) buffer chunk_data_buffer {
+    uint chunk_data[];
+};
+
+layout(local_size_x = 48, local_size_y = 32) in;
+
+bool is_inside(ivec3 chunkPosition, ivec3 samplePoint, float size) {
+    // Check if samplePoint is within the bounds of the 1x1x1 chunk at chunkPosition
+    ivec3 minBound = chunkPosition;
+    ivec3 maxBound = minBound;
+    return all(greaterThanEqual(samplePoint, minBound)) && all(lessThanEqual(samplePoint, maxBound));
+}
+
+// Decode chunk position from integer to vec3 coordinates
+ivec3 decodeChunkPosition(uint encodedPosition) {
+    int x = int((encodedPosition >> 20) & 0x3FF); // Decode the x position
+    int y = int((encodedPosition >> 10) & 0x3FF); // Decode the y position
+    int z = int(encodedPosition & 0x3FF);         // Decode the z position
+    return ivec3(x, y, z);
+}
+
+// Function to intersect ray with axis-aligned bounding box
+bool intersectRayWithBox(vec3 rayOrigin, vec3 rayDirection, vec3 boxMin, vec3 boxMax, out float tMin, out float tMax) {
+    vec3 invDir = 1.0 / rayDirection;
+    vec3 t0 = (boxMin - rayOrigin) * invDir;
+    vec3 t1 = (boxMax - rayOrigin) * invDir;
+
+    vec3 tMinVec = min(t0, t1);
+    vec3 tMaxVec = max(t0, t1);
+
+    tMin = max(max(tMinVec.x, tMinVec.y), tMinVec.z);
+    tMax = min(min(tMaxVec.x, tMaxVec.y), tMaxVec.z);
+
+    return tMax >= max(tMin, 0.0);
+}
+
+// Function to determine the child index based on the current depth and coordinates
+uint get_child_index(uint x, uint y, uint z, uint current_depth) {
+    // Calculate midpoint of the space division at the current depth
+    uint mid_point = OCTREE_SIZE >> (current_depth + 1);
+    uint mid_point2 = OCTREE_SIZE >> (current_depth);
+
+    // Calculate the index based on local coordinates
+    uint index = ((x % mid_point2) >= mid_point ? 1u : 0u) + 
+                 ((y % mid_point2 >= mid_point ? 1u : 0u) << 1) + 
+                 ((z % mid_point2 >= mid_point ? 1u : 0u) << 2);
+
+    return index;
+}
+
+
+bool get_chunk(ivec3 position, out GPUChunk chunk) {
+    for (int i = 0; i < numChunks; i++) {
+        GPUChunk current_chunk = gpu_chunk_data[i];
+        ivec3 chunk_position = decodeChunkPosition(current_chunk.position);
+
+        // If the ray is inside the chunks position
+        if (is_inside(chunk_position, position, CHUNK_SIZE)) {
+            chunk = current_chunk;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool isLeaf(uint data) {
+    return (data & (1u << 31)) != 0u;  // Assuming the highest bit indicates leaf status
+}
+
+void setupDDA(in vec3 rayOrigin, in vec3 rayDir, in float size, out ivec3 rayStep, out vec3 tMax, out vec3 tDelta, out ivec3 mapCheck) {
+    // Ray step (if ray dir is [-3, 2, 1] -> ray step is [-1, 1, 1])
+    rayStep = ivec3(sign(rayDir));
+
+    // Map check is the current ray position in the grid (ray origin [5, 0, 0] -> [0, 0, 0], [32, 0, 0] -> [1, 0, 0])
+    mapCheck = ivec3(floor(rayOrigin / size));
+
+    // Caclulate the next boundary we hit when we step
+    vec3 nextBoundary = (vec3(mapCheck) + step(vec3(0.0), rayDir)) * size;
+
+    // Get the distance to that boundary from where we are currently
+    vec3 distanceToBoundary = nextBoundary - rayOrigin;
+
+    // Calculate tMax for all axis to hit the boundary
+    tMax = distanceToBoundary / rayDir;
+    
+    // Calculate tDelta (how much t increases when we step to the next cell) abs to account for negative rays
+    tDelta = abs(size / rayDir);
+}
+
+bool process_chunk(GPUChunk chunk, vec3 tEntry, float tExit, vec3 rayDir) {
+    // Initialize DDA variables
+    ivec3 rayStep;
+    vec3 tMax;
+    vec3 tDelta;
+    ivec3 mapCheck;
+
+    // Adjust the ray origin by the intersectionPoint to the grid
+    setupDDA(tEntry, rayDir, 1, rayStep, tMax, tDelta, mapCheck);
+
+    // Go into the chunk octree by the position and rays direction to find the correct vertex
+    uint current_node = chunk_data[chunk.offset];
+    uint current_depth = 0;
+    uint node_history[MAX_DEPTH + 1]; // Array to store node indices as we traverse
+    node_history[0] = chunk.offset;
+
+    // Ensure the intersection point is within the bounds of the current chunk
+    mapCheck = clamp(mapCheck, ivec3(0), ivec3(OCTREE_SIZE - 1));
+
+    // Traverse in the correct direction until we get a leaf or exceed the stop point
+    while (all(lessThanEqual(mapCheck, ivec3(OCTREE_SIZE - 1))) && all(greaterThanEqual(mapCheck, ivec3(0))))
+    {
+        // if (current_depth >= 1)
+        // {
+        //     imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), vec4(1.0, 1.0, 1.0, 1.0));
+        //     return true;
+        // }
+        if (isLeaf(current_node))
+        {
+            imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), vec4(1.0, 1.0, 1.0, 1.0));
+            return true;
+        }
+
+        uint child_index = get_child_index(mapCheck.x, mapCheck.y, mapCheck.z, current_depth);
+
+        if ((current_node & (1u << child_index)) != 0u)
+        {
+            uint index_offset = 1;
+            for (uint i = 0; i < child_index; ++i) {
+                if ((current_node & (1u << i)) != 0u) {
+                    uint child_node = node_history[current_depth] + index_offset;
+                    index_offset += (child_node & CHILDREN_SIZE_BIT_MASK);
+                }
+            }
+
+            node_history[current_depth + 1] = node_history[current_depth] + index_offset;
+            current_node = chunk_data[node_history[current_depth] + index_offset];
+            current_depth++;
+        } else {
+            // Perform DDA step
+            if (tMax.x < tMax.y) {
+                if (tMax.x < tMax.z) {
+                    mapCheck.x += rayStep.x;
+                    tMax.x += tDelta.x;
+                } else {
+                    mapCheck.z += rayStep.z;
+                    tMax.z += tDelta.z;
+                }
+            } else {
+                if (tMax.y < tMax.z) {
+                    mapCheck.y += rayStep.y;
+                    tMax.y += tDelta.y;
+                } else {
+                    mapCheck.z += rayStep.z;
+                    tMax.z += tDelta.z;
+                }
+            }
+
+            imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), vec4(1.0, 0.0, 1.0, 1.0));
+
+            current_depth = 0;
+            current_node = chunk_data[node_history[0]];
+        }
+    }
+
+    return false;
+}
+
+void main() {
+    // Ray setup for camera
+    ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
+    vec2 uv = (vec2(pixelCoords) + 0.5) / vec2(imageSize(outputImage));
+    vec4 rayClip = vec4(uv * 2.0 - 1.0, -1.0, 1.0);
+    vec4 rayEye = invProjection * rayClip;
+    rayEye = vec4(rayEye.xy, -1.0, 0.0);
+    vec3 rayDir = normalize((invView * rayEye).xyz);
+    vec3 rayOrigin = cameraPos;
+
+    // Clear the pixel coordinates of the image before we begin
+    imageStore(outputImage, pixelCoords, vec4(0.0, 0.0, 0.0, 1.0));
+    imageStore(debugImage, pixelCoords, vec4(0.0, 0.0, 0.0, 1.0));
+    imageStore(debugImage2, pixelCoords, vec4(0.0, 0.0, 0.0, 1.0));
+
+    // Calculate how far from the camera inside the grid, tEntry is how much to enter the grid, tExit how far until we exit the grid
+    float tEntry, tExit;
+    if (!intersectRayWithBox(rayOrigin, rayDir, vec3(0), vec3(CHUNK_SIZE * (MAX_CHUNKS + 1)), tEntry, tExit)) {
+        // If we can't get inside the grid return black color
+        imageStore(outputImage, pixelCoords, vec4(0.0, 1.0, 0.0, 1.0));
+        return;
+    }
+
+    if (tEntry < 0.0) {
+        tEntry = 0.0;
+    }
+
+    vec3 intersectionPointGlobal = rayOrigin + tEntry * rayDir;
+
+    // Initialize DDA variables
+    ivec3 rayStep;
+    vec3 tMax;
+    vec3 tDelta;
+    ivec3 mapCheck;
+
+    // Adjust the ray origin by the entry to the grid
+    setupDDA(rayOrigin + rayDir * tEntry, rayDir, CHUNK_SIZE, rayStep, tMax, tDelta, mapCheck);
+
+    float t = tEntry;
+    float last_t;
+
+    // + 1 for the last chunk 
+    int loop = 0;
+
+    while (all(lessThanEqual(mapCheck, ivec3(MAX_CHUNKS + 1))) && all(greaterThanEqual(mapCheck, ivec3(0 - 1)))) {
+        ivec3 samplePoint = mapCheck;
+
+        // Dont delete this, it will crash on strat up because we have not initialized the view and projection properly
+        if (loop > 32)
+        {
+            // imageStore(outputImage, pixelCoords, vec4(0.0, 0.0, 1.0, 1.0));
+            break;
+        }
+
+        // Loop through the chunks to get the chunk the rays position corresponds to
+        GPUChunk chunk;
+        bool found = get_chunk(samplePoint, chunk);
+
+        if (found)
+        {
+            float chunkTEntry, chunkTExit;
+            if (!intersectRayWithBox(rayOrigin, rayDir, vec3(mapCheck * CHUNK_SIZE), vec3((mapCheck + 1) * CHUNK_SIZE), chunkTEntry, chunkTExit)) {
+                // If we can't get inside the grid return black color
+                imageStore(outputImage, pixelCoords, vec4(0.0, 1.0, 0.0, 1.0));
+                return;
+            }
+
+            if (chunkTEntry < 0.0)
+            {
+                chunkTEntry = 0.0;
+            }
+
+            // Calculate global intersection point
+            vec3 globalIntersectionPoint = rayOrigin + chunkTEntry * rayDir;
+
+            // Calculate local intersection point (relative to the chunk)
+            vec3 chunkOrigin = vec3(mapCheck * CHUNK_SIZE);
+            vec3 localIntersectionPoint = globalIntersectionPoint - chunkOrigin;
+
+            if (process_chunk(chunk, localIntersectionPoint, chunkTExit, rayDir))
+            {
+                // imageStore(outputImage, pixelCoords, vec4(1.0, 1.0, 1.0, 1.0));
+                return;
+            }
+        }
+
+        if (tMax.x < tMax.y) {
+            if (tMax.x < tMax.z) {
+                mapCheck.x += rayStep.x;
+                tMax.x += tDelta.x;
+            } else {
+                mapCheck.z += rayStep.z;
+                tMax.z += tDelta.z;
+            }
+        } else {
+            if (tMax.y < tMax.z) {
+                mapCheck.y += rayStep.y;
+                tMax.y += tDelta.y;
+            } else {
+                mapCheck.z += rayStep.z;
+                tMax.z += tDelta.z;
+            }
+        }
+
+        t += min(min(tMax.x, tMax.y), tMax.z);
+        if (abs(t - last_t) <= .1) {
+            imageStore(outputImage, pixelCoords, vec4(1.0, 0.0, 0.0, 1.0));
+            return;
+        }
+        last_t = t;
+        
+        // return;
+        loop++;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#version 450 core
+
+#define VOXEL_SIZE .5
+#define CHUNK_SIZE 64
+#define MAX_CHUNKS 64
+#define OCTREE_SIZE 64
+#define MAX_DEPTH 6
+
+const uint CHILDREN_SIZE_BIT_MASK = 0xFFFFu << 8;
+
+
+// Binding for the output image where voxels will be visualized.
+layout(rgba32f, binding = 0) writeonly uniform image2D outputImage;
+layout(rgba32f, binding = 3) writeonly uniform image2D debugImage;
+layout(rgba32f, binding = 4) writeonly uniform image2D debugImage2;
+
+uniform vec3 cameraPos;
+uniform mat4 view;
+uniform mat4 projection;
+uniform mat4 invProjection;
+uniform mat4 invView;
+uniform int numChunks;
+
+struct GPUChunk {
+    uint position;
+    uint offset;
+    uint size;
+};
+
+layout(std430, binding = 1) buffer gpu_chunk_buffer {
+    GPUChunk gpu_chunk_data[];
+};
+
+layout(std430, binding = 2) buffer chunk_data_buffer {
+    uint chunk_data[];
+};
+
+layout(local_size_x = 48, local_size_y = 32) in;
+
+bool is_inside(ivec3 chunkPosition, ivec3 samplePoint, float size) {
+    // Check if samplePoint is within the bounds of the 1x1x1 chunk at chunkPosition
+    ivec3 minBound = chunkPosition;
+    ivec3 maxBound = minBound;
+    return all(greaterThanEqual(samplePoint, minBound)) && all(lessThanEqual(samplePoint, maxBound));
+}
+
+// Decode chunk position from integer to vec3 coordinates
+ivec3 decodeChunkPosition(uint encodedPosition) {
+    int x = int((encodedPosition >> 20) & 0x3FF); // Decode the x position
+    int y = int((encodedPosition >> 10) & 0x3FF); // Decode the y position
+    int z = int(encodedPosition & 0x3FF);         // Decode the z position
+    return ivec3(x, y, z);
+}
+
+// Function to intersect ray with axis-aligned bounding box
+bool intersectRayWithBox(vec3 rayOrigin, vec3 rayDirection, vec3 boxMin, vec3 boxMax, out float tMin, out float tMax) {
+    vec3 invDir = 1.0 / rayDirection;
+    vec3 t0 = (boxMin - rayOrigin) * invDir;
+    vec3 t1 = (boxMax - rayOrigin) * invDir;
+
+    vec3 tMinVec = min(t0, t1);
+    vec3 tMaxVec = max(t0, t1);
+
+    tMin = max(max(tMinVec.x, tMinVec.y), tMinVec.z);
+    tMax = min(min(tMaxVec.x, tMaxVec.y), tMaxVec.z);
+
+    return tMax >= max(tMin, 0.0);
+}
+
+// Function to determine the child index based on the current depth and coordinates
+uint get_child_index(uint x, uint y, uint z, uint current_depth) {
+    // Calculate midpoint of the space division at the current depth
+    uint mid_point = OCTREE_SIZE >> (current_depth + 1);
+    uint mid_point2 = OCTREE_SIZE >> (current_depth);
+
+    // Calculate the index based on local coordinates
+    uint index = ((x % mid_point2) >= mid_point ? 1u : 0u) + 
+                 ((y % mid_point2 >= mid_point ? 1u : 0u) << 1) + 
+                 ((z % mid_point2 >= mid_point ? 1u : 0u) << 2);
+
+    return index;
+}
+
+
+bool get_chunk(ivec3 position, out GPUChunk chunk) {
+    for (int i = 0; i < numChunks; i++) {
+        GPUChunk current_chunk = gpu_chunk_data[i];
+        ivec3 chunk_position = decodeChunkPosition(current_chunk.position);
+
+        // If the ray is inside the chunks position
+        if (is_inside(chunk_position, position, CHUNK_SIZE)) {
+            chunk = current_chunk;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool isLeaf(uint data) {
+    return (data & (1u << 31)) != 0u;  // Assuming the highest bit indicates leaf status
+}
+
+void setupDDA(in vec3 rayOrigin, in vec3 rayDir, in float size, out ivec3 rayStep, out vec3 tMax, out vec3 tDelta, out ivec3 mapCheck) {
+    // Ray step (if ray dir is [-3, 2, 1] -> ray step is [-1, 1, 1])
+    rayStep = ivec3(sign(rayDir));
+
+    // Map check is the current ray position in the grid (ray origin [5, 0, 0] -> [0, 0, 0], [32, 0, 0] -> [1, 0, 0])
+    mapCheck = ivec3(floor(rayOrigin / size));
+
+    // Caclulate the next boundary we hit when we step
+    vec3 nextBoundary = (vec3(mapCheck) + step(vec3(0.0), rayDir)) * size;
+
+    // Get the distance to that boundary from where we are currently
+    vec3 distanceToBoundary = nextBoundary - rayOrigin;
+
+    // Calculate tMax for all axis to hit the boundary
+    tMax = distanceToBoundary / rayDir;
+    
+    // Calculate tDelta (how much t increases when we step to the next cell) abs to account for negative rays
+    tDelta = abs(size / rayDir);
+}
+
+bool process_chunk(GPUChunk chunk, vec3 chunkOrigin, vec3 entryPoint, vec3 rayDir) {
+    // Go into the chunk octree by the position and rays direction to find the correct vertex
+    uint current_node = chunk_data[chunk.offset];
+    uint current_depth = 0;
+    uint node_history[MAX_DEPTH + 1]; // Array to store node indices as we traverse
+    node_history[0] = chunk.offset;
+
+    float t = 0.0;
+    ivec3 cell = ivec3(0);
+    float last_t;
+    int loop = 0;
+
+    // Traverse in the correct direction until we get a leaf or exceed the stop point
+    while (all(lessThanEqual(cell, ivec3(OCTREE_SIZE - 1))) && all(greaterThanEqual(cell, ivec3(0))))
+    {
+        // Dont delete this, it will crash on strat up because we have not initialized the view and projection properly
+        if (loop > 32) {
+            imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), vec4(0.0, 0.0, 1.0, 1.0));
+            break;
+        }
+        if (current_depth >= 2)
+        {
+            imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), vec4(1.0, 1.0, 1.0, 1.0));
+            return true;
+        }
+
+        if (isLeaf(current_node))
+        {
+            imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), vec4(1.0, 1.0, 1.0, 1.0));
+            return true;
+        }
+
+        vec3 samplePoint = (entryPoint + rayDir * t) - chunkOrigin;
+        cell = ivec3(floor(samplePoint));
+
+        if (!(all(lessThanEqual(cell, ivec3(OCTREE_SIZE - 1))) && all(greaterThanEqual(cell, ivec3(0)))))
+        {
+            break;
+        }
+
+        uint child_index = get_child_index(cell.x, cell.y, cell.z, current_depth);
+
+        if ((current_node & (1u << child_index)) != 0u)
+        {
+            // imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), vec4(1.0, 1.0, 1.0, 1.0));
+            // return true;
+            uint index_offset = 1;
+            for (uint i = 0; i < child_index; ++i) {
+                if ((current_node & (1u << i)) != 0u) {
+                    uint child_node = node_history[current_depth] + index_offset;
+                    index_offset += (child_node & CHILDREN_SIZE_BIT_MASK);
+                }
+            }
+
+            node_history[current_depth + 1] = node_history[current_depth] + index_offset;
+            current_node = chunk_data[node_history[current_depth] + index_offset];
+            current_depth++;
+        } else {
+            // return false;
+            // Perform DDA step
+            // uint current_size = CHUNK_SIZE >> current_depth;
+            // vec3 chunkSizeVec = vec3(current_size);
+
+            // vec3 D1 = (mix(floor(samplePoint / chunkSizeVec) * chunkSizeVec, ceil(samplePoint / chunkSizeVec) * chunkSizeVec, step(0.0, rayDir)) - samplePoint) / rayDir;
+            // float d1 = min(D1.x, min(D1.y, D1.z));
+
+            // t += d1 + 0.0001;
+            // samplePoint = (entryPoint + rayDir * t) - chunkOrigin;
+            // cell = ivec3(floor(samplePoint));
+
+            // while (any(greaterThanEqual(abs(samplePoint), chunkSizeVec)) && current_depth > 0) {
+            //     current_depth--;
+            //     current_size = CHUNK_SIZE >> current_depth;
+            //     chunkSizeVec = vec3(current_size);
+
+            //     current_node = chunk_data[node_history[current_depth]];
+            // }
+
+            vec3 D1 = (mix(floor((entryPoint + rayDir * t)), ceil((entryPoint + rayDir * t)), step(0.0, rayDir)) - (entryPoint + rayDir * t)) / rayDir;
+            float d1 = min(D1.x, min(D1.y, D1.z));
+
+            t += d1 + 0.0001;
+
+            current_depth = 0;
+            current_node = chunk_data[node_history[0]];
+
+            if (abs(t - last_t) <= 0.00001) {
+                imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), vec4(1.0, 0.0, 0.0, 1.0));
+                return true;
+            }
+
+            last_t = t;
+        }
+    }
+
+    return false;
+}
+
+void main() {
+    // Ray setup for camera
+    ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
+    vec2 uv = (vec2(pixelCoords) + 0.5) / vec2(imageSize(outputImage));
+    vec4 rayClip = vec4(uv * 2.0 - 1.0, -1.0, 1.0);
+    vec4 rayEye = invProjection * rayClip;
+    rayEye = vec4(rayEye.xy, -1.0, 0.0);
+    vec3 rayDir = normalize((invView * rayEye).xyz);
+    vec3 rayOrigin = cameraPos;
+
+    // Clear the pixel coordinates of the image before we begin
+    imageStore(outputImage, pixelCoords, vec4(0.0, 0.0, 0.0, 1.0));
+    imageStore(debugImage, pixelCoords, vec4(0.0, 0.0, 0.0, 1.0));
+    imageStore(debugImage2, pixelCoords, vec4(0.0, 0.0, 0.0, 1.0));
+
+    // Calculate how far from the camera inside the grid, tEntry is how much to enter the grid, tExit how far until we exit the grid
+    float tEntry, tExit;
+    if (!intersectRayWithBox(rayOrigin, rayDir, vec3(0), vec3(CHUNK_SIZE * (MAX_CHUNKS + 1)), tEntry, tExit)) {
+        // If we can't get inside the grid return black color
+        imageStore(outputImage, pixelCoords, vec4(0.0, 1.0, 0.0, 1.0));
+        return;
+    }
+
+    if (tEntry < 0.0) {
+        tEntry = 0.0;
+    }
+
+    float t = tEntry;
+    float last_t;
+
+    int loop = 0;
+    vec3 cell = vec3(0);
+
+    while (all(lessThanEqual(cell, ivec3(MAX_CHUNKS + 1))) && all(greaterThanEqual(cell, ivec3(0 - 1)))) {
+        // Dont delete this, it will crash on strat up because we have not initialized the view and projection properly
+        if (loop > 32) {
+            imageStore(outputImage, pixelCoords, vec4(0.0, 0.0, 1.0, 1.0));
+            break;
+        }
+
+        vec3 samplePoint = rayOrigin + rayDir * t;
+        cell = floor(samplePoint / CHUNK_SIZE);
+
+        // Loop through the chunks to get the chunk the rays position corresponds to
+        GPUChunk chunk;
+        bool found = get_chunk(ivec3(cell), chunk);
+
+        if (found)
+        {
+            vec3 chunkOrigin = vec3(cell * CHUNK_SIZE);
+            if (process_chunk(chunk, chunkOrigin, rayOrigin + rayDir * t, rayDir))
+            {
+                // imageStore(outputImshadeage, pixelCoords, vec4(1.0, 1.0, 1.0, 1.0));
+                return;
+            }
+        }
+
+        vec3 D1 = (mix(floor(samplePoint / CHUNK_SIZE) * CHUNK_SIZE, ceil(samplePoint / CHUNK_SIZE) * CHUNK_SIZE, step(0.0, rayDir)) - samplePoint) / rayDir;
+        float d1 = min(D1.x, min(D1.y, D1.z));
+
+        t += d1 + 0.0001;
+        if (abs(t - last_t) <= .1) {
+            imageStore(outputImage, pixelCoords, vec4(1.0, 0.0, 0.0, 1.0));
+            return;
+        }
+        last_t = t;
+
+        loop++;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#version 450 core
+
+#define VOXEL_SIZE 1
+#define CHUNK_SIZE 64
+#define MAX_CHUNKS 12
+#define OCTREE_SIZE 64
+#define MAX_DEPTH 6
+
+const uint CHILDREN_SIZE_BIT_MASK = 0xFFFF << 8;
+
+// Binding for the output image where voxels will be visualized.
+layout(rgba32f, binding = 0) writeonly uniform image2D outputImage;
+layout(rgba32f, binding = 3) writeonly uniform image2D debugImage;
+layout(rgba32f, binding = 4) writeonly uniform image2D debugImage2;
+
+uniform vec3 cameraPos;
+uniform mat4 view;
+uniform mat4 projection;
+uniform mat4 invProjection;
+uniform mat4 invView;
+uniform int numChunks;
+
+struct GPUChunk {
+    uint position;
+    uint offset;
+    uint size;
+    uint valid;
+};
+
+layout(std430, binding = 1) buffer gpu_chunk_buffer {
+    GPUChunk gpu_chunk_data[];
+};
+
+layout(std430, binding = 2) buffer chunk_data_buffer {
+    uint chunk_data[];
+};
+
+layout(local_size_x = 48, local_size_y = 32) in;
+
+// Function to intersect ray with axis-aligned bounding box
+bool intersectRayWithBox(vec3 rayOrigin, vec3 rayDirection, vec3 boxMin, vec3 boxMax, out float tMin, out float tMax) {
+    vec3 invDir = 1.0 / rayDirection;
+    vec3 t0 = (boxMin - rayOrigin) * invDir;
+    vec3 t1 = (boxMax - rayOrigin) * invDir;
+
+    vec3 tMinVec = min(t0, t1);
+    vec3 tMaxVec = max(t0, t1);
+
+    tMin = max(max(tMinVec.x, tMinVec.y), tMinVec.z);
+    tMax = min(min(tMaxVec.x, tMaxVec.y), tMaxVec.z);
+
+    return tMax >= max(tMin, 0.0);
+}
+
+// Function to determine the child index based on the current depth and coordinates
+uint get_child_index(uint x, uint y, uint z, uint current_depth) {
+    // Calculate midpoint of the space division at the current depth
+    uint mid_point = OCTREE_SIZE >> (current_depth + 1);
+    uint mid_point2 = OCTREE_SIZE >> (current_depth);
+
+    // Calculate the index based on local coordinates
+    uint index = ((x % mid_point2) >= mid_point ? 1u : 0u) + 
+                 ((y % mid_point2 >= mid_point ? 1u : 0u) << 1) + 
+                 ((z % mid_point2 >= mid_point ? 1u : 0u) << 2);
+
+    return index;
+}
+
+bool get_chunk(ivec3 position, out GPUChunk chunk) {
+    uint index = position.x + position.y * MAX_CHUNKS + position.z * MAX_CHUNKS * MAX_CHUNKS;
+    GPUChunk current_chunk = gpu_chunk_data[index];
+
+    if (current_chunk.valid != 0u) {
+        chunk = current_chunk;
+        return true;
+    }
+
+    return false;
+}
+
+bool isLeaf(uint data) {
+    return (data & (1u << 31)) != 0u;  // Assuming the highest bit indicates leaf status
+}
+
+bool process_chunk(GPUChunk chunk, vec3 chunkOrigin, vec3 entryPoint, vec3 rayDir) {
+    // imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), vec4(1.0, 1.0, 1.0, 1.0));
+    // return true;
+    // Go into the chunk octree by the position and rays direction to find the correct vertex
+    uint current_node = chunk_data[chunk.offset];
+    uint current_depth = 0;
+    uint node_history[MAX_DEPTH + 1]; // Array to store node indices as we traverse
+    node_history[0] = chunk.offset;
+
+    float t = 0.0;
+    ivec3 cell = ivec3(0);
+    float last_t;
+    int loop = 0;
+
+    // Traverse in the correct direction until we get a leaf or exceed the stop point
+    while (all(lessThanEqual(cell, ivec3(OCTREE_SIZE - 1))) && all(greaterThanEqual(cell, ivec3(0))))
+    {
+        // Dont delete this, it will crash on strat up because we have not initialized the view and projection properly
+        if (loop > 12) {
+            // imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), vec4(0.0, 0.0, 1.0, 1.0));
+            break;
+        }
+
+        if (isLeaf(current_node))
+        {
+            imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), vec4(1.0, 1.0, 1.0, 1.0));
+            return true;
+        }
+
+        vec3 samplePoint = (entryPoint + rayDir * t) - chunkOrigin;
+        cell = ivec3(floor(samplePoint / VOXEL_SIZE));
+
+        if (!(all(lessThanEqual(cell, ivec3(OCTREE_SIZE - 1))) && all(greaterThanEqual(cell, ivec3(0)))))
+        {
+            break;
+        }
+
+        uint child_index = get_child_index(cell.x, cell.y, cell.z, current_depth);
+
+        if ((current_node & (1u << child_index)) != 0u)
+        {
+            uint index_offset = 1;
+            for (uint i = 0; i < child_index; ++i) {
+                if ((current_node & (1u << i)) != 0u) {
+                    uint child_node = chunk_data[node_history[current_depth] + index_offset];
+                    index_offset += ((child_node & CHILDREN_SIZE_BIT_MASK) >> 8);
+                }
+            }
+
+            node_history[current_depth + 1] = node_history[current_depth] + index_offset;
+            current_node = chunk_data[node_history[current_depth + 1]];
+            current_depth++;
+        } else {
+            // Perform DDA step
+            uint current_size = CHUNK_SIZE >> current_depth + 1;
+            vec3 chunkSizeVec = vec3(current_size / VOXEL_SIZE);
+
+            vec3 D1 = (mix(floor(samplePoint / chunkSizeVec) * chunkSizeVec, ceil(samplePoint / chunkSizeVec) * chunkSizeVec, step(0.0, rayDir)) - samplePoint) / rayDir;
+            float d1 = min(D1.x, min(D1.y, D1.z));
+
+            t += d1 + 0.0001;
+            samplePoint = (entryPoint + rayDir * t) - chunkOrigin;
+            cell = ivec3(floor(samplePoint));
+
+            while (any(greaterThanEqual(abs(samplePoint), chunkSizeVec)) && current_depth > 0) {
+                current_depth--;
+                current_size = CHUNK_SIZE >> current_depth;
+                chunkSizeVec = vec3(current_size / VOXEL_SIZE);
+
+                current_node = chunk_data[node_history[current_depth]];
+            }
+
+            if (abs(t - last_t) <= 0.1) {
+                // imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), vec4(1.0, 0.0, 0.0, 1.0));
+                return true;
+            }
+
+            last_t = t;
+        }
+    }
+
+    return false;
+}
+
+void main() {
+    // Ray setup for camera
+    ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
+    vec2 uv = (vec2(pixelCoords) + 0.5) / vec2(imageSize(outputImage));
+    vec4 rayClip = vec4(uv * 2.0 - 1.0, -1.0, 1.0);
+    vec4 rayEye = invProjection * rayClip;
+    rayEye = vec4(rayEye.xy, -1.0, 0.0);
+    vec3 rayDir = normalize((invView * rayEye).xyz);
+    vec3 rayOrigin = cameraPos;
+
+    // Clear the pixel coordinates of the image before we begin
+    imageStore(outputImage, pixelCoords, vec4(0.0, 0.0, 0.0, 1.0));
+
+    // Calculate how far from the camera inside the grid, tEntry is how much to enter the grid, tExit how far until we exit the grid
+    float tEntry, tExit;
+    if (!intersectRayWithBox(rayOrigin, rayDir, vec3(0), vec3(CHUNK_SIZE * (MAX_CHUNKS)), tEntry, tExit)) {
+        // If we can't get inside the grid return black color
+        imageStore(outputImage, pixelCoords, vec4(0.0, 1.0, 0.0, 1.0));
+        return;
+    }
+
+    if (tEntry < 0.0) {
+        tEntry = 0.0;
+    }
+
+    float t = tEntry;
+    float last_t = -10;
+
+    int loop = 0;
+    vec3 cell = vec3(0);
+
+    while (t < tExit) {
+        // Dont delete this, it will crash on start up because we have not initialized the view and projection properly
+        if (loop > 5) {
+            break;
+        }
+
+        vec3 samplePoint = rayOrigin + rayDir * t;
+        cell = floor(samplePoint / CHUNK_SIZE);
+
+        // Loop through the chunks to get the chunk the rays position corresponds to
+        GPUChunk chunk;
+        bool found = get_chunk(ivec3(cell), chunk);
+
+        if (found) {
+            vec3 chunkOrigin = vec3(cell * CHUNK_SIZE);
+            if (process_chunk(chunk, chunkOrigin, rayOrigin + rayDir * t, rayDir))
+            {
+                return;
+            }
+        }
+
+        vec3 D1 = (mix(floor(samplePoint / CHUNK_SIZE) * CHUNK_SIZE, ceil(samplePoint / CHUNK_SIZE) * CHUNK_SIZE, step(0.0, rayDir)) - samplePoint) / rayDir;
+        float d1 = min(D1.x, min(D1.y, D1.z));
+
+        t += d1 + 0.0001;
+        if (abs(t - last_t) <= 0.1) {
+            imageStore(outputImage, pixelCoords, vec4(1.0, 0.0, 0.0, 1.0));
+            return;
+        }
+        last_t = t;
+
+        loop++;
+    }
+}
