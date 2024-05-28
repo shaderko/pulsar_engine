@@ -36,49 +36,41 @@ static Camera *Init()
 
     // Initialize rendering to texture
     glGenTextures(1, &camera->image_out);
-    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, camera->image_out);
-
-    // Some texture shenanigans
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-    // Default the camera width and height to 1920x1080
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 1920, 1080, 0, GL_RGBA, GL_FLOAT, NULL);
-    camera->last_width = 1920;
-    camera->last_height = 1080;
+    // camera->last_width = 1920;
+    // camera->last_height = 1080;
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    // Create depth buffer texture
+    glGenTextures(1, &camera->depth);
+    glBindTexture(GL_TEXTURE_2D, camera->depth);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, 1920, 1080, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
     glBindImageTexture(0, camera->image_out, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
 
-    // DEBUG
-    // Initialize rendering to texture
-    GLuint debug_image;
-    glGenTextures(1, &debug_image);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, debug_image);
+    // glGenRenderbuffers(1, &camera->depth);
+    // glBindRenderbuffer(GL_RENDERBUFFER, camera->depth);
+    // glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 1920, 1080);
 
-    // Some texture shenanigans
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glGenFramebuffers(1, &camera->fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, camera->fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, camera->image_out, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, camera->depth, 0);
 
-    // Default the camera width and height to 1920x1080
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 1920, 1080, 0, GL_RGBA, GL_FLOAT, NULL);
-    glBindImageTexture(3, debug_image, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+    // Check if FBO creation was successful
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    {
+        printf("Error: Framebuffer is not complete!\n");
+        // TODO:
+    }
 
-    // Initialize rendering to texture
-    GLuint debug_image2;
-    glGenTextures(1, &debug_image2);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, debug_image2);
-
-    // Some texture shenanigans
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-    // Default the camera width and height to 1920x1080
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 1920, 1080, 0, GL_RGBA, GL_FLOAT, NULL);
-    glBindImageTexture(4, debug_image2, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-
-    // Idk what this does (bind frame buffer to screen i think)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Check for errors
@@ -124,28 +116,27 @@ static void UpdateView(Camera *camera)
 
 static void Render(Camera *camera, Window *window, int width, int height, Scene *scene)
 {
-    // GLuint queries[2];
-    // glGenQueries(2, queries);
-    // glBeginQuery(GL_TIME_ELAPSED, queries[0]);
-
     if (!camera)
         ERROR_RETURN(NULL, "[ERROR] Camera is null.");
-
-    float black[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-    // Clear the image with black
-    glClearTexImage(camera->image_out, 0, GL_RGBA, GL_FLOAT, &black);
 
     if (camera->last_width != width || camera->last_height != height)
     {
         // Update texture size
-        glBindTexture(GL_TEXTURE_2D, camera->image_out);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+        // glBindTexture(GL_TEXTURE_2D, camera->image_out);
+        // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     }
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, camera->image_out);
+    // glActiveTexture(GL_TEXTURE0);
+    // glBindTexture(GL_TEXTURE_2D, camera->image_out);
 
-    AWindowRender->RenderBegin(window, camera);
-    glViewport(0, 0, width, height);
+    glBindFramebuffer(GL_FRAMEBUFFER, camera->fbo);
+
+    // AWindowRender->RenderBegin(window, camera);
+    glViewport(0, 0, 1920, 1080);
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // Check for errors
     GLenum error = glGetError();
@@ -167,16 +158,10 @@ static void Render(Camera *camera, Window *window, int width, int height, Scene 
         fprintf(stderr, "OpenGL Camera 2 Error: %d\n", error);
     }
 
-    // float *data = (float *)malloc(width * height * 4 * sizeof(float));
-    // glBindTexture(GL_TEXTURE_2D, camera->image_out);
-    // glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, data);
-
     camera->last_width = width;
     camera->last_height = height;
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-    // free(data);
 }
 
 static void Delete(Camera *camera)

@@ -14,23 +14,28 @@
 
 #include <linmath.h>
 #include <stdbool.h>
+#include <glad/glad.h>
 
 #include "octree/octree.h"
+
+typedef struct GPUChunk GPUChunk;
+struct GPUChunk
+{
+    unsigned int position;
+    float textureIndex;
+
+    unsigned int offset;
+};
 
 typedef struct Chunk Chunk;
 struct Chunk
 {
     unsigned int position; // Max value of 1024, later can be upgraded to long unsigned int which is 8 bytes (2097151)
     Octree *voxel_tree;
-};
 
-typedef struct GPUChunk GPUChunk;
-struct GPUChunk
-{
-    unsigned int position;
-    unsigned int offset;
-    unsigned int size;
-    unsigned int valid;
+    GLuint heightMap;
+
+    GPUChunk *gpu_chunk;
 };
 
 typedef struct
@@ -45,7 +50,7 @@ struct AChunk
 
     void (*Add)(Chunk *chunk, unsigned int x, unsigned int y, unsigned int z, unsigned char color, unsigned int uvs);
 
-    void (*Serialize)(void *data);
+    SerializedChunk (*Serialize)(Chunk *chunk);
 };
 
 extern struct AChunk AChunk;

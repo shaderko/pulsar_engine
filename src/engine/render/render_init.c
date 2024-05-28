@@ -16,11 +16,12 @@
 
 void render_init_shaders(WindowRender *render)
 {
-    render->shader = render_shader_create_comp("./shaders/voxel");
+    render->render_shader = render_shader_create_frag_vert("./shaders/default");
+    render->ray_march_compute_shader = render_shader_create_comp("./shaders/ray_march");
     render->shader_screen = render_shader_create_frag_vert("./shaders/screen");
 
-    // By default use the comp shader
-    glUseProgram(render->shader);
+    // By default use the render shader
+    glUseProgram(render->render_shader);
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_DEPTH_CLAMP);

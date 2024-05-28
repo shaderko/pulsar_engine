@@ -66,7 +66,7 @@ static Editor *Init()
     return editor;
 }
 
-static float radius = 50.0f; // Distance from the center of the cube
+static float radius = 1.0f; // Distance from the center of the cube
 
 static void UpdateContext(Editor *editor, SDL_Event *event)
 {
@@ -164,6 +164,8 @@ static void Render(Editor *editor)
     // Uint64 start, end;
     // double deltaTime;
     // start = SDL_GetPerformanceCounter();
+
+    ACamera->Render(editor->editor_camera->camera, editor->window, 1920, 1080, editor->scene);
 
     ImGuiIO *ioptr = igGetIO();
 
@@ -427,7 +429,7 @@ static void Render(Editor *editor)
         vec3_norm(right, right); // Normalize the right vector
 
         // Movement speed
-        float speed = 0.1f;
+        float speed = 1.0f;
 
         // Update camera position based on input
         if (editor->w_pressed)
@@ -478,8 +480,6 @@ static void Render(Editor *editor)
         {
             fprintf(stderr, "OpenGL Camera Error: %d\n", error);
         }
-
-        ACamera->Render(editor->editor_camera->camera, editor->window, windowSize.x, windowSize.y, editor->scene);
 
         // end = SDL_GetPerformanceCounter();
         // deltaTime = (double)((end - start) * 1000) / SDL_GetPerformanceFrequency();

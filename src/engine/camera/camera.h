@@ -33,6 +33,7 @@ struct Camera
 
     // Used by the window to show the rendered image
     GLuint image_out;
+    GLuint depth;
     GLuint fbo;
 
     // Save last render size

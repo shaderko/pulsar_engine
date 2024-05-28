@@ -41,9 +41,9 @@ static Window *Init(int width, int height, char *title)
 
     // and prepare OpenGL stuff
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
-    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+    // SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_DisplayMode current;
     SDL_GetCurrentDisplayMode(0, &current);
 
@@ -73,6 +73,13 @@ static Window *Init(int width, int height, char *title)
     {
         ERROR_EXIT("failed to load GL: %s\n", SDL_GetError());
     }
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
 
     puts("openGL loaded");
     printf("OpenGL %d.%d\n", GLVersion.major, GLVersion.minor);
@@ -191,7 +198,7 @@ static void Render(Window *window)
 
     ACamera->Render(window->camera, window, window->width, window->height, window->scene);
 
-    AWindowRender->RenderScreen(window->camera);
+    // AWindowRender->RenderScreen(window->camera);
     AWindowRender->RenderEnd(window);
 }
 

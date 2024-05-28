@@ -15,7 +15,7 @@
 #include <inttypes.h>
 #include <glad/glad.h>
 #include <linmath.h>
-#include "../object/model/model.h"
+#include "../object/chunk/chunk.h"
 
 typedef struct Scene Scene;
 
@@ -26,7 +26,8 @@ typedef struct Window Window;
 typedef struct WindowRender WindowRender;
 struct WindowRender
 {
-    int32_t shader;
+    int32_t ray_march_compute_shader;
+    int32_t render_shader;
     int32_t shader_screen;
 
     uint32_t screen_vao;
@@ -45,7 +46,8 @@ struct AWindowRender
 
     void (*RenderScreenInit)();
     void (*RenderScreen)(Camera *camera);
-    void (*RenderSceneChunks)(Scene *scene, Camera *camera, int width, int height);
+    void (*RenderChunks)(Scene *scene, Camera *camera);
+    void (*RayMarchChunkHeightTexture)(Scene *scene, Camera *camera);
 
     // Render
     void (*RenderBegin)(Window *window, Camera *camera);

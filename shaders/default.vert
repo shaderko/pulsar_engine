@@ -1,25 +1,28 @@
 #version 450 core
 
-layout (location = 0) in vec3 aPos;
-layout (location = 1) in vec3 aNormal;
-layout (location = 2) in vec2 uvs;
+#define CHUNK_SIZE 64
 
-// uniform mat4 model;
-layout(location = 3) in vec4 instanceMatrixRow0;
-layout(location = 4) in vec4 instanceMatrixRow1;
-layout(location = 5) in vec4 instanceMatrixRow2;
-layout(location = 6) in vec4 instanceMatrixRow3;
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec2 aTexCoords;
+layout(location = 2) in vec3 instancePosition;
+layout(location = 3) in float instanceTextureIndex;
+
+out vec3 GridPos;
+out vec3 FragPos;
+out vec2 TexCoords;
+flat out float textureIndex;
 
 uniform mat4 view;
 uniform mat4 projection;
+uniform sampler2DArray heightMaps;
 
-out vec3 FragPos;
-out vec3 Normal;
+void main() {
+    vec3 displacedPos = ((aPos + instancePosition) * CHUNK_SIZE);
 
-void main()
-{
-    mat4 model = mat4(instanceMatrixRow0, instanceMatrixRow1, instanceMatrixRow2, instanceMatrixRow3);
-    gl_Position = projection * view * model * vec4(aPos, 1.0);
-    FragPos = vec3(model * vec4(aPos, 1.0));
-    Normal = mat3(transpose(inverse(model))) * aNormal;
+    gl_Position = projection * view * vec4(displacedPos, 1.0);
+
+    GridPos = instancePosition * CHUNK_SIZE;
+    FragPos = displacedPos;
+    TexCoords = aTexCoords;
+    textureIndex = instanceTextureIndex;
 }

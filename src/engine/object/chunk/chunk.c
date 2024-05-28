@@ -15,6 +15,8 @@
 #include "../../render/render.h"
 #include "octree/octree.h"
 
+#define MAX_CHUNKS 1024
+
 #define X_MASK (0xA << 20)
 #define Y_MASK (0xA << 10)
 #define Z_MASK (0xA)
@@ -31,6 +33,34 @@ static Chunk *Init(vec3 position)
     // Initialize an octree for this chunk
     chunk->voxel_tree = AOctree.Init();
 
+    // Generate a height map for this chunk
+    glGenTextures(1, &chunk->heightMap);
+    glBindTexture(GL_TEXTURE_3D, chunk->heightMap);
+    glTexImage3D(GL_TEXTURE_3D, 0, GL_R8, 64, 64, 64, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    // Create dummy data for initial texture
+    uint8_t *data = (uint8_t *)malloc(64 * 64 * 64 * sizeof(uint8_t));
+    memset(data, 0, 64 * 64 * 64 * sizeof(uint8_t));
+    for (int i = 0; i < 64 * 64 * 64; i++)
+    {
+        data[i] = 0;
+    }
+    glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, 64, 64, 64, GL_RED, GL_UNSIGNED_BYTE, data);
+
+    // Create the gpu chunk
+    chunk->gpu_chunk = malloc(sizeof(GPUChunk));
+    if (!chunk->gpu_chunk)
+        ERROR_EXIT("[Error] Failed to allocate gpu chunk.\n");
+
+    // Set the gpu chunk position
+    chunk->gpu_chunk->position = chunk->position;
+    // Set the gpu chunk texture index
+    chunk->gpu_chunk->textureIndex = 0;
+
     return chunk;
 }
 
@@ -40,7 +70,20 @@ static void Add(Chunk *chunk, unsigned int x, unsigned int y, unsigned int z, un
     AOctree.Add(chunk->voxel_tree, x, y, z, color, uvs);
 }
 
-static void Serialize(void *data)
+static SerializedChunk Serialize(Chunk *chunk)
+{
+    SerializedChunk serialized_chunk;
+
+    serialized_chunk.data = NULL;
+    serialized_chunk.size = 0;
+
+    // Linearize octree of the chunk
+    AOctree.LinearizeOctree(chunk->voxel_tree->root, &serialized_chunk.data, &serialized_chunk.size);
+
+    return serialized_chunk;
+}
+
+static void SerializeAsync(void *data)
 {
     struct ThreadData
     {

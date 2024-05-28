@@ -78,9 +78,24 @@ static void AddCamera(Scene *scene, Camera *camera)
     scene->cameras_size++;
 }
 
+static Chunk *GetChunkAt(Scene *scene, vec3 position)
+{
+    for (int i = 0; i < scene->chunks_size; ++i)
+    {
+        unsigned int new_pos = (unsigned int)position[0] << 20 | (unsigned int)position[1] << 10 | (unsigned int)position[2];
+        if (scene->chunks[i]->position == new_pos)
+        {
+            return scene->chunks[i];
+        }
+    }
+
+    return NULL;
+}
+
 static void Render(Scene *scene, Camera *camera, int width, int height)
 {
-    AWindowRender->RenderSceneChunks(scene, camera, width, height);
+    AWindowRender->RayMarchChunkHeightTexture(scene, camera);
+    AWindowRender->RenderChunks(scene, camera);
 }
 
 static int SerializeThreadFunc(void *data)
@@ -98,7 +113,7 @@ static SerializedScene SerializeChunks(Scene *scene)
     // Create all needed buffers for storage and threads
     SDL_Thread **threads = malloc(scene->chunks_size * sizeof(SDL_Thread *));
     GPUChunk *gpu_chunks = malloc(MAX_WORLD_SIZE * sizeof(GPUChunk));
-    GPUChunk default_chunk = {0, 0, 0, (unsigned int)false};
+    GPUChunk default_chunk = {0};
     for (int i = 0; i < MAX_WORLD_SIZE; ++i)
     {
         gpu_chunks[i] = default_chunk;
@@ -141,7 +156,7 @@ static SerializedScene SerializeChunks(Scene *scene)
         unsigned int y = (scene->chunks[i]->position >> 10) & 0x3FF;
         unsigned int z = scene->chunks[i]->position & 0x3FF;
         unsigned int index = x + y * 12 + z * 12 * 12;
-        gpu_chunks[index] = (GPUChunk){scene->chunks[i]->position, totalSize, serialized_chunks[i].size, (unsigned int)true};
+        gpu_chunks[index] = (GPUChunk){scene->chunks[i]->position};
 
         // Add the size to the overall size
         totalSize += serialized_chunks[i].size;
@@ -241,6 +256,7 @@ struct AScene AScene =
         .Delete = Delete,
         .Update = Update,
         .AddCamera = AddCamera,
+        .GetChunkAt = GetChunkAt,
         .AddChunk = AddChunk,
         .Render = Render,
         .SerializeChunks = SerializeChunks,

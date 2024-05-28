@@ -61,6 +61,8 @@ struct AScene
 
     void (*AddCamera)(Scene *scene, Camera *camera);
 
+    Chunk *(*GetChunkAt)(Scene *scene, vec3 position);
+
     void (*AddChunk)(Scene *scene, Chunk *chunk);
 
     void (*Render)(Scene *scene, Camera *camera, int width, int height);

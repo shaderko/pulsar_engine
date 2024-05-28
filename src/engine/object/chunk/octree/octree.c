@@ -37,7 +37,7 @@ static Octree *Init()
     octree->depth = OCTREE_DEPTH;
     octree->root = create_node();
 
-    puts("[INFO] Octree initialized");
+    // puts("[INFO] Octree initialized");
 
     return octree;
 }
@@ -116,11 +116,11 @@ static OctreeNode *create_node()
 
 static int add_data(Octree *octree, OctreeNode *node, unsigned char current_depth, unsigned int x, unsigned int y, unsigned int z, unsigned char color)
 {
-    puts("[INFO] Adding data to octree");
+    // puts("[INFO] Adding data to octree");
 
     if (octree->depth == current_depth)
     {
-        puts("[INFO] Max depth reached");
+        // puts("[INFO] Max depth reached");
 
         // todo
         // if (node->data != 0)
