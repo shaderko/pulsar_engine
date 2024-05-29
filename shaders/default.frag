@@ -88,14 +88,14 @@ float parallaxOcclusionMapping(vec3 viewDir, float textureIndex) {
 }
 
 void main() {
-    vec3 viewDir = -normalize(viewPos - FragPos);
+    vec3 viewDir = normalize(FragPos - viewPos);
 
     float height = parallaxOcclusionMapping(viewDir, textureIndex * 64);
     if (height <= 0.0)
     {
-        // FragColor = vec4(0.0, 0.0, 1.0, 1.0);
-        // return;
-        discard;
+        FragColor = vec4(0.0, 0.0, 1.0, 1.0);
+        return;
+        // discard;
     }
 
     FragColor = vec4(vec3(height), 1.0);

@@ -94,11 +94,11 @@ int main(int argc, char *argv[])
         // Run LateUpdate from assets
 
         // Measure the frame duration and delay if necessary
-        // Uint32 frameTime = SDL_GetTicks() - frameStart;
-        // if (frameTime < FRAME_DURATION)
-        // {
-        //     SDL_Delay(FRAME_DURATION - frameTime);
-        // }
+        Uint32 frameTime = SDL_GetTicks() - frameStart;
+        if (frameTime < FRAME_DURATION)
+        {
+            SDL_Delay(FRAME_DURATION - frameTime);
+        }
     }
 
     deleteCellularAutomaton();

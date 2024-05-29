@@ -470,12 +470,16 @@ static void RayMarchChunkHeightTexture(Scene *scene, Camera *camera)
     chunk = AScene.GetChunkAt(scene, nextChunkPosition);
     if (!chunk)
     {
-        printf("[WARNING] No chunk at position %u\n", nextChunkPosition);
+        printf("[WARNING] No chunk at position %f, %f, %f\n", nextChunkPosition[0], nextChunkPosition[1], nextChunkPosition[2]);
 
         // puts("[INFO] Adding chunk to scene.");
 
         // Chunk *chunk = AChunk.Init(nextChunkPosition);
         // AScene.AddChunk(scene, chunk);
+    }
+    else
+    {
+        printf("[INFO] Chunk found at position %f, %f, %f\n", nextChunkPosition[0], nextChunkPosition[1], nextChunkPosition[2]);
     }
 
     // End the ray marching timer

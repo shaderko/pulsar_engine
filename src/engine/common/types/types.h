@@ -19,5 +19,7 @@ typedef uint32_t u32;
 typedef float f32;
 typedef double f64;
 typedef unsigned long long ull;
+typedef int ivec3[3];
+typedef unsigned int uivec3[3];
 
 #endif
