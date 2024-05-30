@@ -23,7 +23,9 @@ uniform mat4 view;
 uniform int numChunks;
 
 struct GPUChunk {
-    uint position;
+    float x;
+    float y;
+    float z;
     float textureIndex;
 
     uint offset;
@@ -71,10 +73,11 @@ uint get_child_index(uint x, uint y, uint z, uint current_depth) {
 }
 
 bool get_chunk(ivec3 position, out GPUChunk chunk) {
-    uint chunk_position = position.x << 20 | position.y << 10 | position.z;
+    // uint chunk_position = position.x << 20 | position.y << 10 | position.z;
     for (int i = 0; i < numChunks; i++)
     {
-        if (gpu_chunk_data[i].position == chunk_position)
+        GPUChunk chunk_temp = gpu_chunk_data[i];
+        if (chunk_temp.x == position.x && chunk_temp.y == position.y && chunk_temp.z == position.z)
         {
             chunk = gpu_chunk_data[i];
             return true;

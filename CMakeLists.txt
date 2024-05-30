@@ -144,7 +144,7 @@ endif(SDL2_FOUND)
 add_library(cimgui_sdl SHARED ${CIMGUI_SRC})
 target_link_libraries(cimgui_sdl ${IMGUI_LIBRARIES} ${IMGUI_SDL_LIBRARY})
 
-set(RENDER src/engine/render/render.c src/engine/render/render_init.c)
+set(RENDER src/engine/render/render.c src/engine/render/render_init.c src/engine/render/gpu_cache/gpu_cache_manager.c)
 set(CAMERA src/engine/camera/camera.c)
 set(IO src/engine/io/io.c)
 set(OBJECT src/engine/object/collider/collider.c src/engine/object/collider/box_collider.c src/engine/object/renderer/renderer.c src/engine/object/object.c src/engine/object/model/model.c src/engine/object/chunk/chunk.c src/engine/object/chunk/octree/octree.c)

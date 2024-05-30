@@ -21,7 +21,10 @@
 typedef struct GPUChunk GPUChunk;
 struct GPUChunk
 {
-    unsigned int position;
+    float x;
+    float y;
+    float z;
+
     float textureIndex;
 
     unsigned int offset;

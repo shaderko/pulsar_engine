@@ -57,7 +57,9 @@ static Chunk *Init(vec3 position)
         ERROR_EXIT("[Error] Failed to allocate gpu chunk.\n");
 
     // Set the gpu chunk position
-    chunk->gpu_chunk->position = chunk->position;
+    chunk->gpu_chunk->x = position[0];
+    chunk->gpu_chunk->y = position[1];
+    chunk->gpu_chunk->z = position[2];
     // Set the gpu chunk texture index
     chunk->gpu_chunk->textureIndex = 0;
 
