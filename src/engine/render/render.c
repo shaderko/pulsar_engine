@@ -20,11 +20,8 @@
 #include "../object/map/scene.h"
 #include "gpu_cache/gpu_cache_manager.h"
 
-#define GPU_CHUNK_CACHE 1024
-#define GPU_TEXTURE_ARRAY_CACHE 20
-#define GPU_CHUNK_DATA_CACHE 50000
-
-#define NUM_RAYS 20 * 20
+#define NUM_RAYS_X 100
+#define NUM_RAYS_Y 100
 
 static WindowRender *active_render = NULL;
 static GLuint heightMapArray = 0;
@@ -50,20 +47,6 @@ static WindowRender *Init()
     AWindowRender->RenderScreenInit();
 
     AGpuCache.Init();
-
-    // Create the height map array
-    glGenTextures(1, &heightMapArray);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, heightMapArray);
-
-    // Allocate storage for the texture array
-    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R8, 64, 64, 64 * GPU_TEXTURE_ARRAY_CACHE, 0, GL_RED, GL_UNSIGNED_BYTE, NULL); // 20 is number of textures
-
-    // Set texture parameters
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
     return render;
 }
@@ -114,6 +97,9 @@ static void RenderScreen(Camera *camera)
 static void RenderChunks(Scene *scene, Camera *camera)
 {
     // puts("[INFO] Preparing chunks for rendering");
+    static gpu_cache_manager_t *gpu_manager = NULL;
+    if (!gpu_manager)
+        gpu_manager = AGpuCache.Get();
 
     // Shader program using vertex / fragment shaders
     glUseProgram(active_render->render_shader);
@@ -132,7 +118,6 @@ static void RenderChunks(Scene *scene, Camera *camera)
     static bool allocated = false; // This will change in the future if we want to add a chunk mid way through, but if the chunk is change
     // it doesn't matter since we will change the height map
     static GLuint vao, vbo, ebo;
-    static GLuint gpu_chunk_buffer;
 
     if (!allocated)
     {
@@ -192,40 +177,7 @@ static void RenderChunks(Scene *scene, Camera *camera)
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void *)(3 * sizeof(float)));
         glEnableVertexAttribArray(1);
 
-        // Create a buffer for all the GPU chunks (later we will cull this)
-        GPUChunk *gpu_chunks = malloc(sizeof(GPUChunk) * scene->chunks_size);
-        if (!gpu_chunks)
-            ERROR_EXIT("[ERROR] Failed to allocate memory for GPU chunks.");
-        memset(gpu_chunks, 0, sizeof(GPUChunk) * scene->chunks_size);
-
-        // Fill the buffer with all scene chunks and copy each texture into the texture array
-        for (unsigned int i = 0; i < scene->chunks_size; i++)
-        {
-            Chunk *chunk = scene->chunks[i];
-
-            glBindTexture(GL_TEXTURE_3D, chunk->heightMap);
-            uint8_t *data = (uint8_t *)malloc(64 * 64 * 64 * sizeof(uint8_t));
-            glGetTexImage(GL_TEXTURE_3D, 0, GL_RED, GL_UNSIGNED_BYTE, data);
-
-            glBindTexture(GL_TEXTURE_2D_ARRAY, heightMapArray);
-            glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i * 64, 64, 64, 64, GL_RED, GL_UNSIGNED_BYTE, data);
-
-            free(data);
-
-            // Adjust the texture index
-            chunk->gpu_chunk->textureIndex = i;
-            chunk->gpu_chunk->offset = 0;
-
-            chunk->gpu_chunk->textureIndex = (float)i;
-            gpu_chunks[i] = *chunk->gpu_chunk;
-        }
-        glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
-
-        // Create a gpu buffer for the gpu chunks
-        GLuint instanceBuffer;
-        glGenBuffers(1, &instanceBuffer);
-        glBindBuffer(GL_ARRAY_BUFFER, instanceBuffer);
-        glBufferData(GL_ARRAY_BUFFER, scene->chunks_size * sizeof(GPUChunk), gpu_chunks, GL_STATIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, gpu_manager->gpu_chunks_buffer);
 
         // Instance attribute: position x
         glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(GPUChunk), offsetof(GPUChunk, x));
@@ -238,15 +190,13 @@ static void RenderChunks(Scene *scene, Camera *camera)
         glVertexAttribDivisor(3, 1); // Update per instance
 
         glBindVertexArray(0);
-
-        free(gpu_chunks);
     }
 
     glBindVertexArray(vao);
 
     // Bind the height map texture array
     glActiveTexture(GL_TEXTURE10);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, heightMapArray);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, gpu_manager->gpu_textures_storage_buffer);
     glUniform1i(glGetUniformLocation(active_render->render_shader, "heightMaps"), 10);
 
     // Bind the VAO and draw instanced
@@ -257,20 +207,20 @@ static void RenderChunks(Scene *scene, Camera *camera)
     glEndQuery(GL_TIME_ELAPSED);
     GLuint64 timeElapsed;
     glGetQueryObjectui64v(queries[0], GL_QUERY_RESULT, &timeElapsed);
-    // printf("[INFO] Time taken for rendering: %f ms\n", timeElapsed / 1000000.0);
+    printf("[INFO] Time taken for rendering: %f ms\n", timeElapsed / 1000000.0);
 }
 
 static void RayMarchChunkHeightTexture(Scene *scene, Camera *camera)
 {
     static int *randomPositions = NULL;
     if (!randomPositions)
-        randomPositions = malloc(sizeof(int) * NUM_RAYS * 2);
+        randomPositions = malloc(sizeof(int) * (NUM_RAYS_X * NUM_RAYS_Y) * 2);
 
     // Generate random coordinates
     int screenWidth = 1920;  // Example screen width
     int screenHeight = 1080; // Example screen height
 
-    for (int i = 0; i < NUM_RAYS * 2; i += 2)
+    for (int i = 0; i < (NUM_RAYS_X * NUM_RAYS_Y) * 2; i += 2)
     {
         randomPositions[i] = rand() % screenWidth;
         randomPositions[i + 1] = rand() % screenHeight;
@@ -284,43 +234,7 @@ static void RayMarchChunkHeightTexture(Scene *scene, Camera *camera)
     }
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, randomPositionsSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(int) * NUM_RAYS * 2, randomPositions, GL_STATIC_DRAW);
-
-    // Create static chunk to be used based on the previous fetch in the shader
-    static Chunk *chunk = NULL;
-
-    // Create static chunk buffer cache
-    static Chunk **gpu_chunk_buffer_cache = NULL;
-    if (!gpu_chunk_buffer_cache)
-    {
-        puts("[INFO] Initializing chunk buffer cache.");
-
-        gpu_chunk_buffer_cache = malloc(sizeof(Chunk *) * GPU_CHUNK_CACHE);
-        if (!gpu_chunk_buffer_cache)
-            ERROR_EXIT("[ERROR] Failed to allocate memory for chunk buffer.");
-    }
-
-    static GLuint gpu_chunk_buffer = 0;
-    static size_t gpu_chunk_buffer_index = 0;
-    if (!gpu_chunk_buffer)
-    {
-        // Allocate a gpu buffer for the gpu chunks
-        glGenBuffers(1, &gpu_chunk_buffer);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, gpu_chunk_buffer);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(GPUChunk) * GPU_CHUNK_CACHE, 0, GL_DYNAMIC_DRAW);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gpu_chunk_buffer);
-    }
-
-    static GLuint chunk_data_buffer = 0;
-    static size_t chunk_data_buffer_index = 0;
-    if (!chunk_data_buffer)
-    {
-        // Allocate a gpu buffer for the data of chunks
-        glGenBuffers(1, &chunk_data_buffer);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, chunk_data_buffer);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, GPU_CHUNK_DATA_CACHE * sizeof(unsigned int), 0, GL_DYNAMIC_DRAW);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, chunk_data_buffer);
-    }
+    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(int) * (NUM_RAYS_X * NUM_RAYS_Y) * 2, randomPositions, GL_STATIC_DRAW);
 
     static GLuint resultBuffer;
     if (!resultBuffer)
@@ -328,11 +242,15 @@ static void RayMarchChunkHeightTexture(Scene *scene, Camera *camera)
         // Create the result buffer
         glGenBuffers(1, &resultBuffer);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, resultBuffer);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(vec3), 0, GL_DYNAMIC_DRAW);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(vec3) * NUM_RAYS_X * NUM_RAYS_Y, 0, GL_DYNAMIC_DRAW);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, resultBuffer);
     }
 
     glUseProgram(active_render->ray_march_compute_shader);
+
+    static gpu_cache_manager_t *gpu_manager = NULL;
+    if (!gpu_manager)
+        gpu_manager = AGpuCache.Get();
 
     // Start timer to track how much time it takes to prepare all data for the gpu
     GLuint queries[2];
@@ -343,58 +261,9 @@ static void RayMarchChunkHeightTexture(Scene *scene, Camera *camera)
     glUniform3fv(glGetUniformLocation(active_render->ray_march_compute_shader, "cameraPos"), 1, camera->position);
     glUniformMatrix4fv(glGetUniformLocation(active_render->ray_march_compute_shader, "projection"), 1, GL_FALSE, &camera->projection[0][0]);
     glUniformMatrix4fv(glGetUniformLocation(active_render->ray_march_compute_shader, "view"), 1, GL_FALSE, &camera->view[0][0]);
-    glUniform1i(glGetUniformLocation(active_render->ray_march_compute_shader, "numChunks"), gpu_chunk_buffer_index);
+    glUniform1i(glGetUniformLocation(active_render->ray_march_compute_shader, "numChunks"), gpu_manager->chunks_buffer_index);
 
-    // Bind the heightMap array as texture array
-    glBindImageTexture(4, heightMapArray, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R8);
-
-    // Declare buffer variables
-    SerializedChunk serialized_chunk = {0};
-
-    if (chunk)
-    {
-        // Check if the chunk is still in the cache
-        Chunk *current = NULL;
-        for (int i = 0; i < gpu_chunk_buffer_index; i++)
-        {
-            if (chunk->position == gpu_chunk_buffer_cache[i]->position)
-            {
-                // printf("[INFO] Found chunk in cache at position %u\n", chunk->position);
-                // Found the chunk in the cache
-                current = gpu_chunk_buffer_cache[i];
-                chunk = NULL;
-                break;
-            }
-        }
-        if (!current)
-        {
-            // Serialize single chunk that is required
-            puts("[INFO] Serializing chunk.");
-            serialized_chunk = AChunk.Serialize(chunk);
-
-            if (serialized_chunk.size > GPU_CHUNK_DATA_CACHE - chunk_data_buffer_index || gpu_chunk_buffer_index >= GPU_CHUNK_CACHE - 1)
-            {
-                // Free the oldest added chunk
-                puts("[WARNING] Out of cache memory");
-                return;
-            }
-
-            // Add the chunk to the gpu buffer cache
-            gpu_chunk_buffer_cache[gpu_chunk_buffer_index] = chunk;
-
-            chunk->gpu_chunk->offset = chunk_data_buffer_index;
-            glBindBuffer(GL_SHADER_STORAGE_BUFFER, gpu_chunk_buffer);
-            glBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(GPUChunk) * gpu_chunk_buffer_index, sizeof(GPUChunk), chunk->gpu_chunk);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gpu_chunk_buffer);
-            gpu_chunk_buffer_index++;
-
-            // Adjust the gpu chunk data buffer
-            glBindBuffer(GL_SHADER_STORAGE_BUFFER, chunk_data_buffer);
-            glBufferSubData(GL_SHADER_STORAGE_BUFFER, chunk_data_buffer_index * sizeof(unsigned int), serialized_chunk.size * sizeof(unsigned int), serialized_chunk.data);
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, chunk_data_buffer);
-            chunk_data_buffer_index += serialized_chunk.size;
-        }
-    }
+    AGpuCache.Prepare();
 
     // End the data preparation timer
     glEndQuery(GL_TIME_ELAPSED);
@@ -407,69 +276,58 @@ static void RayMarchChunkHeightTexture(Scene *scene, Camera *camera)
     glBeginQuery(GL_TIME_ELAPSED, queries[0]);
 
     // Dispatch compute shader
-    glDispatchCompute(20, 20, 1);
-
-    // puts("[INFO] Compute shader dispatched.");
+    glDispatchCompute(NUM_RAYS_X, NUM_RAYS_Y, 1);
 
     // Synchronize compute shader
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-    // puts("[INFO] Compute shader synchronized.");
-
     // Fetch the next chunks position
-    vec3 nextChunkPosition;
+    vec3 nextChunkPosition[NUM_RAYS_X * NUM_RAYS_Y];
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, resultBuffer);
-    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(vec3), &nextChunkPosition);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(vec3) * NUM_RAYS_X * NUM_RAYS_Y, &nextChunkPosition);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
-    if (chunk)
-    {
-        // Adjust the height map texture array with the new data (eg. copy the data from the passed textureat 0 to height map array at index of chunk->gpu_chunk->textureIndex)
-        // glBindTexture(GL_TEXTURE_2D, chunk->heightMap);
+    // if (chunk)
+    // {
+    //     // Adjust the height map texture array with the new data (eg. copy the data from the passed textureat 0 to height map array at index of chunk->gpu_chunk->textureIndex)
+    //     // glBindTexture(GL_TEXTURE_2D, chunk->heightMap);
 
-        // // Read the updated texture data
-        // GLubyte *data = (GLubyte *)malloc(256 * 256 * sizeof(GLubyte));
-        // glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_UNSIGNED_BYTE, data);
+    //     // // Read the updated texture data
+    //     // GLubyte *data = (GLubyte *)malloc(256 * 256 * sizeof(GLubyte));
+    //     // glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_UNSIGNED_BYTE, data);
 
-        // // Bind the texture array and update the specific layer
-        // glBindTexture(GL_TEXTURE_2D_ARRAY, heightMapArray);
-        // glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, chunk->gpu_chunk->textureIndex, 256, 256, 1, GL_RED, GL_UNSIGNED_BYTE, data);
+    //     // // Bind the texture array and update the specific layer
+    //     // glBindTexture(GL_TEXTURE_2D_ARRAY, heightMapArray);
+    //     // glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, chunk->gpu_chunk->textureIndex, 256, 256, 1, GL_RED, GL_UNSIGNED_BYTE, data);
 
-        // Free the temporary data buffer
-        // free(data);
+    //     // Free the temporary data buffer
+    //     // free(data);
 
-        // Unbind the textures
-        // glBindTexture(GL_TEXTURE_2D, 0);
-        // glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+    //     // Unbind the textures
+    //     // glBindTexture(GL_TEXTURE_2D, 0);
+    //     // glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
-        // Clean up
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    //     // Clean up
+    //     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
-        free(serialized_chunk.data);
+    //     free(serialized_chunk.data);
 
-        chunk = NULL;
-    }
+    //     chunk = NULL;
+    // }
 
     // Get the next chunk at nextChunkPosition
-    chunk = AScene.GetChunkAt(scene, nextChunkPosition);
-    if (!chunk)
+    for (size_t i = 0; i < NUM_RAYS_X * NUM_RAYS_Y; i++)
     {
-        // printf("[WARNING] No chunk at position %f, %f, %f\n", nextChunkPosition[0], nextChunkPosition[1], nextChunkPosition[2]);
+        vec3 *position = nextChunkPosition[i];
 
-        // puts("[INFO] Adding chunk to scene.");
-
-        // Chunk *chunk = AChunk.Init(nextChunkPosition);
-        // AScene.AddChunk(scene, chunk);
-    }
-    else
-    {
-        // printf("[INFO] Chunk found at position %f, %f, %f\n", nextChunkPosition[0], nextChunkPosition[1], nextChunkPosition[2]);
+        Chunk *chunk = AScene.GetChunkAt(scene, position);
+        AGpuCache.AddToCache(chunk);
     }
 
     // End the ray marching timer
     glEndQuery(GL_TIME_ELAPSED);
     glGetQueryObjectui64v(queries[0], GL_QUERY_RESULT, &timeElapsed);
-    // printf("[INFO] Time taken for ray marching: %f ms\n", timeElapsed / 1000000.0);
+    printf("[INFO] Time taken for ray marching: %f ms\n", timeElapsed / 1000000.0);
 }
 
 static void RenderBegin(Window *window, Camera *camera)

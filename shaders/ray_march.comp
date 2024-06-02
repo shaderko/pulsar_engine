@@ -7,6 +7,8 @@
 #define MAX_DEPTH 6
 #define MAX_VIEW_CHUNK_DISTANCE 5
 
+#define NUM_RAYS 100
+
 const uint CHILDREN_SIZE_BIT_MASK = 0xFFFF << 8;
 
 // Binding for the output image where voxels will be visualized.
@@ -40,7 +42,7 @@ layout(std430, binding = 2) buffer chunk_data_buffer {
 };
 
 layout(std430, binding = 3) buffer OutputBuffer {
-    vec3 nextChunkPosition;
+    vec3 nextChunkPosition[];
 };
 
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
@@ -158,7 +160,7 @@ bool process_chunk(GPUChunk chunk, vec3 chunkOrigin, vec3 entryPoint, float tExi
 
 void main() {
     // Ray setup for camera
-    uint index = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * 170;
+    uint index = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * NUM_RAYS;
     ivec2 pixelCoords = positions[index];
 
     // ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
@@ -207,7 +209,7 @@ void main() {
                 return;
             }
         } else {
-            nextChunkPosition = vec3(cell);
+            nextChunkPosition[index] = vec3(cell);
             return;
         }
 

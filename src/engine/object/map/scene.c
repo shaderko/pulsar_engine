@@ -10,12 +10,13 @@
  */
 
 #include <stdio.h>
+#include <SDL.h>
 
 #include "../../util/util.h"
 #include "scene.h"
 #include "../object.h"
 #include "../chunk/chunk.h"
-#include <SDL.h>
+#include "../../render/gpu_cache/gpu_cache_manager.h"
 
 #define MAX_WORLD_X_SIZE 12
 #define MAX_WORLD_Y_SIZE 12
@@ -95,6 +96,9 @@ static Chunk *GetChunkAt(Scene *scene, vec3 position)
 static void Render(Scene *scene, Camera *camera, int width, int height)
 {
     AWindowRender->RayMarchChunkHeightTexture(scene, camera);
+
+    AGpuCache.Cull();
+
     AWindowRender->RenderChunks(scene, camera);
 }
 

@@ -13,7 +13,7 @@
 #include "../../util/util.h"
 
 #define GPUCHUNK_BUFFER_CACHE_SIZE 20
-#define CHUNK_DATA_CACHE_SIZE 3000
+#define CHUNK_DATA_CACHE_SIZE 100000
 
 static gpu_cache_manager_t *gpu_manager = NULL;
 
@@ -27,6 +27,7 @@ static gpu_cache_manager_t *Init()
     gpu_manager = malloc(sizeof(gpu_cache_manager_t));
     if (!gpu_manager)
         ERROR_EXIT("[ERROR] Failed to allocate memory for GPU Cache Manager.");
+    memset(gpu_manager, 0, sizeof(gpu_cache_manager_t));
 
     // allocate memory for the gpuchunks buffer on cpu
     gpu_manager->chunks_buffer = malloc(sizeof(gpu_cache_chunk_t *) * GPUCHUNK_BUFFER_CACHE_SIZE);
@@ -40,24 +41,18 @@ static gpu_cache_manager_t *Init()
     // allocate memory for gpu chunks buffer on the gpu
     glGenBuffers(1, &gpu_manager->gpu_chunks_buffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, gpu_manager->gpu_chunks_buffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, GPUCHUNK_BUFFER_CACHE_SIZE * sizeof(GPUChunk), 0, GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, GPUCHUNK_BUFFER_CACHE_SIZE * sizeof(GPUChunk), 0, GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, gpu_manager->gpu_chunks_buffer);
     gpu_manager->gpu_chunks_buffer_size = GPUCHUNK_BUFFER_CACHE_SIZE;
 
+    printf("%zu\n", sizeof(GPUChunk));
+
     gpu_manager->chunks_valid = true;
-
-    // allocate memory for the chunks data on cpu
-    gpu_manager->chunks_data_buffer = malloc(sizeof(unsigned int) * CHUNK_DATA_CACHE_SIZE);
-    if (!gpu_manager->chunks_data_buffer)
-        ERROR_EXIT("[ERROR] Failed to allocate memory for GPU Chunks data buffer")
-
-    gpu_manager->chunks_data_buffer_size = CHUNK_DATA_CACHE_SIZE;
-    gpu_manager->chunks_data_buffer_index = 0;
 
     // allocate memory for the chunks data on gpu
     glGenBuffers(1, &gpu_manager->gpu_chunks_data_buffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, gpu_manager->gpu_chunks_data_buffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, CHUNK_DATA_CACHE_SIZE * sizeof(unsigned int), 0, GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, CHUNK_DATA_CACHE_SIZE * sizeof(unsigned int), 0, GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, gpu_manager->gpu_chunks_data_buffer);
     gpu_manager->gpu_chunks_data_buffer_size = CHUNK_DATA_CACHE_SIZE;
 
@@ -146,6 +141,11 @@ static gpu_cache_manager_t *Get()
     return gpu_manager;
 }
 
+static void Cull()
+{
+    return;
+}
+
 // Prepare all gpu buffers
 static void Prepare()
 {
@@ -167,7 +167,7 @@ static void Prepare()
         }
 
         if (gpu_chunk_buffer_index >= GPUCHUNK_BUFFER_CACHE_SIZE)
-            ERROR_RETURN(NULL, "[WARNING] Gpu buffer smol");
+            ERROR_RETURN(NULL, "[WARNING] Gpu buffer smol\n");
 
         // somehow decide which chunk should be removed if the amount of chunks needed on the gpu is higher than we can store
 
@@ -187,8 +187,11 @@ static void Prepare()
 
         puts("[INFO] Adding chunk to gpu buffers");
 
-        glBufferSubData(gpu_manager->gpu_chunks_buffer, sizeof(GPUChunk) * gpu_chunk_buffer_index, sizeof(GPUChunk), cache_chunk->chunk->gpu_chunk);
-        glBufferSubData(gpu_manager->gpu_chunks_data_buffer, sizeof(unsigned int) * gpu_manager->gpu_chunks_data_buffer_index, sizeof(unsigned int) * cache_chunk->serialized_chunk->size, cache_chunk->serialized_chunk->data);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, gpu_manager->gpu_chunks_buffer);
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(GPUChunk) * gpu_chunk_buffer_index, sizeof(GPUChunk), cache_chunk->chunk->gpu_chunk);
+
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, gpu_manager->gpu_chunks_data_buffer);
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(unsigned int) * gpu_manager->gpu_chunks_data_buffer_index, sizeof(unsigned int) * cache_chunk->serialized_chunk->size, cache_chunk->serialized_chunk->data);
         gpu_manager->gpu_chunks_data_buffer_index += cache_chunk->serialized_chunk->size;
 
         glBindTexture(GL_TEXTURE_3D, cache_chunk->chunk->heightMap);
@@ -201,7 +204,8 @@ static void Prepare()
         free(data);
 
         cache_chunk->on_gpu = true;
-        puts("[INFO] edsadsa");
+
+        gpu_chunk_buffer_index++;
     }
 }
 
@@ -227,7 +231,6 @@ static void Delete()
     free(gpu_manager->chunks_buffer);
     glDeleteBuffers(1, gpu_manager->gpu_chunks_buffer);
 
-    free(gpu_manager->chunks_data_buffer);
     glDeleteBuffers(1, gpu_manager->gpu_chunks_data_buffer);
 
     glDeleteBuffers(1, gpu_manager->gpu_textures_storage_buffer);
@@ -243,5 +246,6 @@ struct AGpuCache AGpuCache =
         .Init = Init,
         .AddToCache = AddToCache,
         .Get = Get,
+        .Cull = Cull,
         .Prepare = Prepare,
         .Delete = Delete};

@@ -34,7 +34,7 @@ struct gpu_cache_chunk_t
 typedef struct gpu_cache_manager_t gpu_cache_manager_t;
 struct gpu_cache_manager_t
 {
-    // Storage for the chunks and chunk data
+    // Storage for all the chunks we have seen
     gpu_cache_chunk_t **chunks_buffer;
     size_t chunks_buffer_size;
     size_t chunks_buffer_index;
@@ -44,10 +44,6 @@ struct gpu_cache_manager_t
     size_t gpu_chunks_buffer_index;
 
     bool chunks_valid;
-
-    unsigned int *chunks_data_buffer;
-    size_t chunks_data_buffer_size;
-    size_t chunks_data_buffer_index;
 
     GLuint gpu_chunks_data_buffer;
     size_t gpu_chunks_data_buffer_size;
@@ -69,6 +65,8 @@ struct AGpuCache
     void (*AddToCache)(Chunk *chunk);
 
     gpu_cache_manager_t *(*Get)();
+
+    void (*Cull)();
 
     void (*Prepare)();
 
