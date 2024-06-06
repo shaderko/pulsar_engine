@@ -47,7 +47,7 @@ struct AWindowRender
     void (*RenderScreenInit)();
     void (*RenderScreen)(Camera *camera);
     void (*RenderChunks)(Scene *scene, Camera *camera);
-    void (*RayMarchChunkHeightTexture)(Scene *scene, Camera *camera);
+    void (*RayMarchChunkHeightTexture)(Scene *scene, Camera *camera, int width, int height);
 
     // Render
     void (*RenderBegin)(Window *window, Camera *camera);

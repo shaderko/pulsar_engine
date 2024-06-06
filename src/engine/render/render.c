@@ -185,19 +185,14 @@ static void RenderChunks(Scene *scene, Camera *camera)
         glVertexAttribDivisor(2, 1); // Update per instance
 
         // Instance attribute: texture index
-        glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(GPUChunk), offsetof(GPUChunk, textureIndex));
-        glEnableVertexAttribArray(3);
-        glVertexAttribDivisor(3, 1); // Update per instance
+        // glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(GPUChunk), offsetof(GPUChunk, textureIndex));
+        // glEnableVertexAttribArray(3);
+        // glVertexAttribDivisor(3, 1); // Update per instance
 
         glBindVertexArray(0);
     }
 
     glBindVertexArray(vao);
-
-    // Bind the height map texture array
-    glActiveTexture(GL_TEXTURE10);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, gpu_manager->gpu_textures_storage_buffer);
-    glUniform1i(glGetUniformLocation(active_render->render_shader, "heightMaps"), 10);
 
     // Bind the VAO and draw instanced
     glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0, scene->chunks_size);
@@ -210,40 +205,16 @@ static void RenderChunks(Scene *scene, Camera *camera)
     printf("[INFO] Time taken for rendering: %f ms\n", timeElapsed / 1000000.0);
 }
 
-static void RayMarchChunkHeightTexture(Scene *scene, Camera *camera)
+static void RayMarchChunkHeightTexture(Scene *scene, Camera *camera, int width, int height)
 {
-    static int *randomPositions = NULL;
-    if (!randomPositions)
-        randomPositions = malloc(sizeof(int) * (NUM_RAYS_X * NUM_RAYS_Y) * 2);
-
-    // Generate random coordinates
-    int screenWidth = 1920;  // Example screen width
-    int screenHeight = 1080; // Example screen height
-
-    for (int i = 0; i < (NUM_RAYS_X * NUM_RAYS_Y) * 2; i += 2)
-    {
-        randomPositions[i] = rand() % screenWidth;
-        randomPositions[i + 1] = rand() % screenHeight;
-    }
-
-    static GLuint randomPositionsSSBO;
-    if (!randomPositionsSSBO)
-    {
-        glGenBuffers(1, &randomPositionsSSBO);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, randomPositionsSSBO);
-    }
-
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, randomPositionsSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(int) * (NUM_RAYS_X * NUM_RAYS_Y) * 2, randomPositions, GL_STATIC_DRAW);
-
     static GLuint resultBuffer;
     if (!resultBuffer)
     {
         // Create the result buffer
         glGenBuffers(1, &resultBuffer);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, resultBuffer);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(vec3) * NUM_RAYS_X * NUM_RAYS_Y, 0, GL_DYNAMIC_DRAW);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, resultBuffer);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(vec3) * 255, 0, GL_DYNAMIC_DRAW);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, resultBuffer);
     }
 
     glUseProgram(active_render->ray_march_compute_shader);
@@ -261,7 +232,6 @@ static void RayMarchChunkHeightTexture(Scene *scene, Camera *camera)
     glUniform3fv(glGetUniformLocation(active_render->ray_march_compute_shader, "cameraPos"), 1, camera->position);
     glUniformMatrix4fv(glGetUniformLocation(active_render->ray_march_compute_shader, "projection"), 1, GL_FALSE, &camera->projection[0][0]);
     glUniformMatrix4fv(glGetUniformLocation(active_render->ray_march_compute_shader, "view"), 1, GL_FALSE, &camera->view[0][0]);
-    glUniform1i(glGetUniformLocation(active_render->ray_march_compute_shader, "numChunks"), gpu_manager->chunks_buffer_index);
 
     AGpuCache.Prepare();
 
@@ -276,47 +246,19 @@ static void RayMarchChunkHeightTexture(Scene *scene, Camera *camera)
     glBeginQuery(GL_TIME_ELAPSED, queries[0]);
 
     // Dispatch compute shader
-    glDispatchCompute(NUM_RAYS_X, NUM_RAYS_Y, 1);
+    glDispatchCompute(width / 64, height / 32, 1);
 
     // Synchronize compute shader
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
     // Fetch the next chunks position
-    vec3 nextChunkPosition[NUM_RAYS_X * NUM_RAYS_Y];
+    vec3 nextChunkPosition[255];
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, resultBuffer);
-    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(vec3) * NUM_RAYS_X * NUM_RAYS_Y, &nextChunkPosition);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(vec3) * 255, &nextChunkPosition);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
-    // if (chunk)
-    // {
-    //     // Adjust the height map texture array with the new data (eg. copy the data from the passed textureat 0 to height map array at index of chunk->gpu_chunk->textureIndex)
-    //     // glBindTexture(GL_TEXTURE_2D, chunk->heightMap);
-
-    //     // // Read the updated texture data
-    //     // GLubyte *data = (GLubyte *)malloc(256 * 256 * sizeof(GLubyte));
-    //     // glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_UNSIGNED_BYTE, data);
-
-    //     // // Bind the texture array and update the specific layer
-    //     // glBindTexture(GL_TEXTURE_2D_ARRAY, heightMapArray);
-    //     // glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, chunk->gpu_chunk->textureIndex, 256, 256, 1, GL_RED, GL_UNSIGNED_BYTE, data);
-
-    //     // Free the temporary data buffer
-    //     // free(data);
-
-    //     // Unbind the textures
-    //     // glBindTexture(GL_TEXTURE_2D, 0);
-    //     // glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
-
-    //     // Clean up
-    //     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-
-    //     free(serialized_chunk.data);
-
-    //     chunk = NULL;
-    // }
-
     // Get the next chunk at nextChunkPosition
-    for (size_t i = 0; i < NUM_RAYS_X * NUM_RAYS_Y; i++)
+    for (size_t i = 0; i < 255; i++)
     {
         vec3 *position = nextChunkPosition[i];
 
@@ -327,7 +269,7 @@ static void RayMarchChunkHeightTexture(Scene *scene, Camera *camera)
     // End the ray marching timer
     glEndQuery(GL_TIME_ELAPSED);
     glGetQueryObjectui64v(queries[0], GL_QUERY_RESULT, &timeElapsed);
-    printf("[INFO] Time taken for ray marching: %f ms\n", timeElapsed / 1000000.0);
+    // printf("[INFO] Time taken for ray marching: %f ms\n", timeElapsed / 1000000.0);
 }
 
 static void RenderBegin(Window *window, Camera *camera)

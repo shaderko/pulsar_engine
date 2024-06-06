@@ -126,9 +126,9 @@ static void Render(Camera *camera, Window *window, int width, int height, Scene 
         // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     }
     // glActiveTexture(GL_TEXTURE0);
-    // glBindTexture(GL_TEXTURE_2D, camera->image_out);
+    glBindTexture(GL_TEXTURE_2D, camera->image_out);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, camera->fbo);
+    // glBindFramebuffer(GL_FRAMEBUFFER, camera->fbo);
 
     // AWindowRender->RenderBegin(window, camera);
     glViewport(0, 0, 1920, 1080);

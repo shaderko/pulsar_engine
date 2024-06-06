@@ -32,15 +32,6 @@ struct Scene
     size_t chunks_count;
 };
 
-typedef struct SerializedScene SerializedScene;
-struct SerializedScene
-{
-    unsigned int *chunks_data;
-    unsigned int chunks_data_size;
-
-    GPUChunk *gpu_chunks;
-};
-
 struct AScene
 {
     /**
@@ -66,8 +57,6 @@ struct AScene
     void (*AddChunk)(Scene *scene, Chunk *chunk);
 
     void (*Render)(Scene *scene, Camera *camera, int width, int height);
-
-    SerializedScene (*SerializeChunks)(Scene *scene);
 
     /**
      * Writes scene objects to a file

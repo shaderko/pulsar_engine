@@ -18,11 +18,6 @@
 #include "../chunk/chunk.h"
 #include "../../render/gpu_cache/gpu_cache_manager.h"
 
-#define MAX_WORLD_X_SIZE 12
-#define MAX_WORLD_Y_SIZE 12
-#define MAX_WORLD_Z_SIZE 12
-#define MAX_WORLD_SIZE MAX_WORLD_X_SIZE *MAX_WORLD_Y_SIZE *MAX_WORLD_Z_SIZE
-
 static Scene *Init()
 {
     Scene *scene = malloc(sizeof(Scene));
@@ -83,8 +78,7 @@ static Chunk *GetChunkAt(Scene *scene, vec3 position)
 {
     for (int i = 0; i < scene->chunks_size; ++i)
     {
-        unsigned int new_pos = (unsigned int)position[0] << 20 | (unsigned int)position[1] << 10 | (unsigned int)position[2];
-        if (scene->chunks[i]->position == new_pos)
+        if (scene->chunks[i]->position[0] == position[0] && scene->chunks[i]->position[1] == position[1] && scene->chunks[i]->position[2] == position[2])
         {
             return scene->chunks[i];
         }
@@ -95,102 +89,11 @@ static Chunk *GetChunkAt(Scene *scene, vec3 position)
 
 static void Render(Scene *scene, Camera *camera, int width, int height)
 {
-    AWindowRender->RayMarchChunkHeightTexture(scene, camera);
+    AWindowRender->RayMarchChunkHeightTexture(scene, camera, width, height);
 
     AGpuCache.Cull();
 
-    AWindowRender->RenderChunks(scene, camera);
-}
-
-static int SerializeThreadFunc(void *data)
-{
-    AChunk.Serialize(data);
-    return 0;
-}
-
-static SerializedScene SerializeChunks(Scene *scene)
-{
-    // If chunk size is 0, we don't need to serialize anything
-    if (!scene || scene->chunks_size == 0)
-        return (SerializedScene){0};
-
-    // Create all needed buffers for storage and threads
-    SDL_Thread **threads = malloc(scene->chunks_size * sizeof(SDL_Thread *));
-    GPUChunk *gpu_chunks = malloc(MAX_WORLD_SIZE * sizeof(GPUChunk));
-    GPUChunk default_chunk = {0};
-    for (int i = 0; i < MAX_WORLD_SIZE; ++i)
-    {
-        gpu_chunks[i] = default_chunk;
-    }
-    SerializedChunk *serialized_chunks = malloc(scene->chunks_size * sizeof(SerializedChunk));
-
-    if (!threads || !serialized_chunks || !gpu_chunks)
-        ERROR_EXIT("Failed to allocate memory for scene serialization!\n");
-
-    // Create threads to process each chunk
-    for (int i = 0; i < scene->chunks_size; i++)
-    {
-        struct ThreadData
-        {
-            Chunk *chunk;
-            SerializedChunk *result;
-        } *data = malloc(sizeof(struct ThreadData));
-
-        data->chunk = scene->chunks[i];
-        data->result = &serialized_chunks[i];
-
-        threads[i] = SDL_CreateThread(SerializeThreadFunc, "Chunk Serialize", data);
-        if (!threads[i])
-            ERROR_EXIT("Failed to create chunk serialize thread!\n");
-
-        // puts("[INFO] Created a thread.");
-    }
-
-    // puts("[INFO] Waiting for all threads to finish");
-
-    // Wait for all threads to finish and calculate total size
-    unsigned int totalSize = 0;
-    for (int i = 0; i < scene->chunks_size; i++)
-    {
-        int threadResult = 0;
-        SDL_WaitThread(threads[i], &threadResult);
-
-        // Create the gpu chunk
-        unsigned int x = (scene->chunks[i]->position >> 20) & 0x3FF;
-        unsigned int y = (scene->chunks[i]->position >> 10) & 0x3FF;
-        unsigned int z = scene->chunks[i]->position & 0x3FF;
-        unsigned int index = x + y * 12 + z * 12 * 12;
-        gpu_chunks[index] = (GPUChunk){scene->chunks[i]->position};
-
-        // Add the size to the overall size
-        totalSize += serialized_chunks[i].size;
-    }
-
-    // printf("[INFO] Combining results, combined size %i, in bytes %i\n", totalSize, totalSize * sizeof(unsigned int));
-
-    // Combine all results into a single buffer
-    unsigned int *combined_data = malloc(totalSize * sizeof(unsigned int));
-    unsigned int *current_position = combined_data;
-
-    for (int i = 0; i < scene->chunks_size; i++)
-    {
-        memcpy(current_position, serialized_chunks[i].data, serialized_chunks[i].size * sizeof(unsigned int));
-        // for (int j = 0; j < serialized_chunks[i].size; j++)
-        // {
-        //     AOctree.print_binary(combined_data[j]);
-        //     printf("\n");
-        // }
-        // printf("\n");
-        current_position += serialized_chunks[i].size;
-        free(serialized_chunks[i].data); // Free each chunk's data after copying
-    }
-
-    // puts("[DEBUG] Combining successful");
-
-    free(threads);
-    free(serialized_chunks);
-
-    return (SerializedScene){combined_data, totalSize, gpu_chunks};
+    // AWindowRender->RenderChunks(scene, camera);
 }
 
 // Call write to file function on all chunks
@@ -263,7 +166,6 @@ struct AScene AScene =
         .GetChunkAt = GetChunkAt,
         .AddChunk = AddChunk,
         .Render = Render,
-        .SerializeChunks = SerializeChunks,
         .WriteToFile = WriteToFile,
         .ReadFile = ReadFile,
 };

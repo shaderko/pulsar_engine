@@ -11,7 +11,6 @@
 #include "engine/camera/camera.h"
 #include "editor/editor.h"
 #include "engine/object/chunk/chunk.h"
-#include "engine/object/chunk/octree/octree.h"
 
 #include "../assets/cellular_automaton.h"
 
@@ -48,7 +47,7 @@ int main(int argc, char *argv[])
                     {
                         for (int z = 0; z < 15; z++)
                         {
-                            AChunk.Add(chunk, x, y, z, 0, 0);
+                            AChunk.Add(chunk, x, y, z, 0);
                         }
                     }
                 }

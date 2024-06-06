@@ -21,12 +21,10 @@ typedef struct gpu_cache_chunk_t gpu_cache_chunk_t;
 struct gpu_cache_chunk_t
 {
     Chunk *chunk;
-    GPUChunk *gpu_chunk;
-    SerializedChunk *serialized_chunk;
+
+    unsigned int offset;
 
     // any additional data to determine if the chunk should be replaced
-    size_t chunk_buffer_index;
-    size_t chunk_data_buffer_index;
 
     bool on_gpu;
 };
@@ -34,28 +32,22 @@ struct gpu_cache_chunk_t
 typedef struct gpu_cache_manager_t gpu_cache_manager_t;
 struct gpu_cache_manager_t
 {
+    // Storage for where the chunks are positioned
+    GLuint gpu_chunks_location_buffer;
+
     // Storage for all the chunks we have seen
     gpu_cache_chunk_t **chunks_buffer;
     size_t chunks_buffer_size;
-    size_t chunks_buffer_index;
 
     GLuint gpu_chunks_buffer;
     size_t gpu_chunks_buffer_size;
-    size_t gpu_chunks_buffer_index;
 
     bool chunks_valid;
 
     GLuint gpu_chunks_data_buffer;
     size_t gpu_chunks_data_buffer_size;
-    size_t gpu_chunks_data_buffer_index;
 
     bool chunks_data_valid;
-
-    // Storage for textures
-    GLuint gpu_textures_storage_buffer;
-    size_t gpu_textures_storage_buffer_size;
-
-    bool textures_valid;
 };
 
 struct AGpuCache

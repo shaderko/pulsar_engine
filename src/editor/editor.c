@@ -14,6 +14,7 @@
 #include <linmath.h>
 #include "../engine/util/util.h"
 #include "../engine/object/object.h"
+#include "../engine/render/gpu_cache/gpu_cache_manager.h"
 
 static Editor *Init()
 {
@@ -250,119 +251,49 @@ static void Render(Editor *editor)
     {
         igBegin("Performance window", NULL, 0);
         igText("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / igGetIO()->Framerate, igGetIO()->Framerate);
-
-        // char input[256] = "";
-        // igInputText("Text", &input, 256, ImGuiInputTextFlags_EnterReturnsTrue, NULL, NULL);
-
-        bool createSingleObject = igButton("Create 1 object", (ImVec2){200, 20});
-        if (createSingleObject)
-        {
-            if (!editor->scene)
-            {
-                puts("Creating new scene...");
-                // editor->scene = AScene->Init((vec3){1, 1, 1});
-            }
-
-            static int pos = 0;
-
-            // static Model *model1;
-            // if (!model1)
-            // model1 = AModel->Load("assets/untitled.obj");
-
-            // Object *box = AObject.InitMesh((vec3){1, 1, 1}, (vec3){1, 1, 1}, (vec3){1, 1, 1}, model);
-            // Object *box = AObject.InitMesh((vec3){pos * 20, 0, 0}, (vec3){0, 0, 0}, (vec3){10, 10, 10}, model1);
-            // pos += 1;
-            // AScene->AddObject(editor->scene, box);
-        }
-
-        bool createFiveObjects = igButton("Create 5 objects", (ImVec2){200, 20});
-        if (createFiveObjects)
-        {
-            if (!editor->scene)
-            {
-                puts("Creating new scene...");
-                // editor->scene = AScene->Init((vec3){1, 1, 1});
-            }
-
-            for (int k = 0; k < 5; k++)
-            {
-                // Model *model2 = AModel->Load("assets/bunny.obj");
-
-                // Object *box = AObject.InitMesh((vec3){k * 1, 1, 1}, (vec3){0, 0, 0}, (vec3){10, 10, 10}, model2);
-                // AScene->AddObject(editor->scene, box);
-            }
-        }
-
-        bool createLowObjects = igButton("Create 125 objects", (ImVec2){200, 20});
-        if (createLowObjects)
-        {
-            if (!editor->scene)
-            {
-                puts("Creating new scene...");
-                // editor->scene = AScene->Init((vec3){1, 1, 1});
-            }
-
-            for (int i = 0; i < 5; i++)
-            {
-                for (int j = 0; j < 5; j++)
-                {
-                    for (int k = 0; k < 5; k++)
-                    {
-                        // static Model *model;
-                        // if (!model)
-                        // model = AModel->Load("assets/bunny.obj");
-
-                        // Object *box = AObject.InitMesh((vec3){k * 10, j * 10, i * 10}, (vec3){1, 1, 1}, (vec3){10, 10, 10}, model);
-                        // AScene->AddObject(editor->scene, box);
-                    }
-                }
-            }
-        }
-
-        bool createObjects = igButton("Create 15625 objects", (ImVec2){200, 20});
-        if (createObjects)
-        {
-            if (!editor->scene)
-            {
-                puts("Creating new scene...");
-                // editor->scene = AScene->Init((vec3){1, 1, 1});
-            }
-
-            for (int i = 0; i < 25; i++)
-            {
-                for (int j = 0; j < 25; j++)
-                {
-                    for (int k = 0; k < 25; k++)
-                    {
-                        // Object *box = AObject.InitBox((vec3){j * 10, i * 10, k * 10}, (vec3){0, 0, 0}, (vec3){10, 10, 10});
-                        // AScene->AddObject(editor->scene, box);
-                    }
-                }
-            }
-        }
         if (editor->scene)
         {
-            // int objects_count = 0;
-            // for (int i = 0; i < editor->scene->objects_list_size; i++)
-            // {
-            //     objects_count += editor->scene->objects_list[i]->object_size;
-            // }
-
-            // igText("Objects: %d", objects_count);
-            // int indicies = 0;
-            // for (int i = 0; i < editor->scene->objects_size; i++)
-            // {
-            //     indicies += editor->scene->objects[i]->renderer->model->indicies_count;
-            // }
-            // igText("Indicies: %d", indicies);
-            // igText("Triangles: %d", indicies / 3);
-            // int verticies = 0;
-            // for (int i = 0; i < editor->scene->objects_size; i++)
-            // {
-            //     verticies += editor->scene->objects[i]->renderer->model->verticies_count;
-            // }
-            // igText("Verticies: %d", verticies);
+            igText("Chunks: %d", editor->scene->chunks_count);
         }
+
+        igEnd();
+    }
+
+    {
+        igBegin("Gpu cache window", NULL, 0);
+
+        static gpu_cache_manager_t *gpu_cache_manager = NULL;
+        if (!gpu_cache_manager)
+            gpu_cache_manager = AGpuCache.Get();
+
+        size_t chunk_size = sizeof(gpu_cache_chunk_t *);
+        size_t str_size = gpu_cache_manager->chunks_buffer_size * (chunk_size + 1) + 1;
+        char *gpu_chunk_cache_str = (char *)malloc(str_size);
+
+        for (size_t i = 0; i < gpu_cache_manager->chunks_buffer_size; i++)
+        {
+            size_t pos = i * (chunk_size + 1);
+            gpu_chunk_cache_str[pos] = '_';
+            if (gpu_cache_manager->chunks_buffer[i] && gpu_cache_manager->chunks_buffer[i]->on_gpu)
+            {
+                for (size_t j = 0; j < chunk_size; j++)
+                {
+                    gpu_chunk_cache_str[pos + 1 + j] = '|';
+                }
+            }
+            else
+            {
+                for (size_t j = 0; j < chunk_size; j++)
+                {
+                    gpu_chunk_cache_str[pos + 1 + j] = '.';
+                }
+            }
+        }
+        gpu_chunk_cache_str[str_size - 1] = '\0';
+
+        igTextWrapped("[%s]", gpu_chunk_cache_str);
+
+        free(gpu_chunk_cache_str);
 
         igEnd();
     }
